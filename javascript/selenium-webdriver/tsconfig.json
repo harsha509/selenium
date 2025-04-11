@@ -1,0 +1,29 @@
+
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowJs": false,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "declaration": false
+  },
+  "include": [
+    "*.ts",
+    "example/**/*.ts",
+    "http/**/*.ts",
+    "io/**/*.ts",
+    "lib/**/*.ts",
+    "lib/fedcm/**/*.ts",
+    "net/**/*.ts",
+    "remote/**/*.ts",
+    "testing/**/*.ts",
+    "devtools/**/*.ts",
+    "common/**/*.ts",
+    "bidi/**/*.ts"
+  ],
+  "exclude": ["node_modules"]
+}

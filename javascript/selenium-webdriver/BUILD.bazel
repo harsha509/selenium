@@ -1,6 +1,7 @@
 load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_js//npm:defs.bzl", "npm_package")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//javascript/selenium-webdriver:eslint/package_json.bzl", eslint_bin = "bin")
 load("@npm//javascript/selenium-webdriver:prettier/package_json.bzl", prettier_bin = "bin")
@@ -19,12 +20,78 @@ BROWSER_VERSIONS = [
     "v133",
 ]
 
+copy_to_bin(
+    name = "tsconfig",
+    srcs = ["tsconfig.json"],
+)
+
+# js source files
+filegroup(
+    name = "js_sources",
+    srcs = glob(
+        [
+            "*.js",
+            "example/*.js",
+            "http/*.js",
+            "io/*.js",
+            "lib/*.js",
+            "lib/fedcm/*.js",
+            "net/*.js",
+            "remote/*.js",
+            "testing/*.js",
+            "devtools/*.js",
+            "common/*.js",
+            "bidi/*.js",
+        ],
+    ),
+)
+
+# TypeScript source files
+filegroup(
+    name = "ts_sources",
+    srcs = glob(
+        [
+            "*.ts",
+            "example/*.ts",
+            "http/*.ts",
+            "io/*.ts",
+            "lib/*.ts",
+            "lib/fedcm/*.ts",
+            "net/*.ts",
+            "remote/*.ts",
+            "testing/*.ts",
+            "devtools/*.ts",
+            "common/*.ts",
+            "bidi/*.ts",
+        ],
+        allow_empty = True,
+    ),
+)
+
+# TypeScript compilation
+ts_project(
+    name = "ts-compile",
+    srcs = [":ts_sources"],
+    allow_js = False,
+    declaration = False,
+    source_map = True,
+    tsconfig = ":tsconfig",
+    deps = [
+        ":node_modules/@bazel/runfiles",
+        ":node_modules/@types/node",
+        ":node_modules/jszip",
+        ":node_modules/tmp",
+        ":node_modules/ws",
+    ],
+)
+
 js_library(
     name = "prod-src-files",
     srcs = [
         "CHANGES.md",
         "README.md",
         "package.json",
+        ":js_sources",
     ] + glob([
         "*.js",
         "example/*.js",
@@ -45,6 +112,7 @@ js_library(
         ":node_modules/jszip",
         ":node_modules/tmp",
         ":node_modules/ws",
+        ":ts-compile",
     ],
 )
 
