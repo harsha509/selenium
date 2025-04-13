@@ -1,11 +1,11 @@
-import by, { RelativeBy } from './by'
+import * as by from './by'
 import * as command from './command'
 import * as error from './error'
 import { NoSuchElementError } from './error'
 import * as input from './input'
 import * as logging from './logging'
-import * as promise from './promise'
-import Symbols from './symbols'
+import promise from './promise'
+import * as Symbols from './symbols'
 import cdp from '../devtools/CDPConnection'
 import WebSocket from 'ws'
 import * as http from '../http/index'
@@ -14,13 +14,15 @@ import { Capabilities } from './capabilities'
 import * as path from 'node:path'
 import { Credential } from './virtual_authenticator'
 import * as webElement from './webelement'
-import { isObject } from './util'
+import { isObject, isPromise } from './util'
 import BIDI from '../bidi'
 import { PinnedScript } from './pinnedScript'
 import JSZip from 'jszip'
 import Script from './script'
 import Network from './network'
 import Dialog from './fedcm/dialog'
+import { RelativeBy } from './by'
+import { Entry, LogType } from './logging'
 
 const cdpTargets = ["page", "browser"];
 
@@ -366,7 +368,7 @@ class WebDriver implements IWebDriver {
     if (typeof pollTimeout !== "number" || pollTimeout < 0) {
       throw TypeError("pollTimeout must be a number >= 0: " + pollTimeout);
     }
-    if (promise.isPromise(condition)) {
+    if (isPromise(condition)) {
       return new Promise((resolve, reject) => {
         if (!timeout) {
           resolve((condition as Promise<T>));
@@ -499,7 +501,7 @@ class WebDriver implements IWebDriver {
     if (locator instanceof RelativeBy) {
       cmd = new command.Command(command.Name.FIND_ELEMENTS_RELATIVE).setParameter("args", locator.marshall());
     } else {
-      locator = by.checkedLocator(locator);
+      locator = by.getLocator(locator);
     }
     if (typeof locator === "function") {
       id = this.findElementInternal_(locator, this);
@@ -545,7 +547,7 @@ class WebDriver implements IWebDriver {
     if (locator instanceof RelativeBy) {
       cmd = new command.Command(command.Name.FIND_ELEMENTS_RELATIVE).setParameter("args", locator.marshall());
     } else {
-      locator = by.checkedLocator(locator);
+      locator = by.getLocator(locator);
     }
     if (typeof locator === "function") {
       return this.findElementsInternal_(locator, this);
@@ -1294,18 +1296,18 @@ class Logs {
   constructor(driver: IWebDriver) {
     this.driver_ = driver;
   }
-  get(type: logging.Type): Promise<logging.Entry[]> {
-    let cmd = new command.Command(command.Name.GET_LOG).setParameter("type", type);
+  get(type: LogType): Promise<Entry[]> {
+    const cmd = new command.Command(command.Name.GET_LOG).setParameter("type", type);
     return this.driver_.execute(cmd).then((entries: any[]) => {
       return entries.map((entry) => {
-        if (!(entry instanceof logging.Entry)) {
-          return new logging.Entry(entry["level"], entry["message"], entry["timestamp"], entry["type"]);
+        if (!(entry instanceof Entry)) {
+          return new Entry(entry["level"], entry["message"], entry["timestamp"], entry["type"]);
         }
         return entry;
       });
     });
   }
-  getAvailableLogTypes(): Promise<logging.Type[]> {
+  getAvailableLogTypes(): Promise<LogType[]> {
     return this.driver_.execute(new command.Command(command.Name.GET_AVAILABLE_LOG_TYPES));
   }
 }
@@ -1403,7 +1405,7 @@ class WebElement {
     return this.driver_.execute(cmd);
   }
   findElement(locator: any): WebElementPromise {
-    locator = by.checkedLocator(locator);
+    locator = by.getLocator(locator);
     let id: any;
     if (typeof locator === "function") {
       id = (this.driver_ as WebDriver).findElementInternal_(locator, this);
@@ -1416,7 +1418,7 @@ class WebElement {
     return new WebElementPromise(this.driver_, id);
   }
   async findElements(locator: any): Promise<WebElement[]> {
-    locator = by.checkedLocator(locator);
+    locator = by.getLocator(locator);
     if (typeof locator === "function") {
       return (this.driver_ as WebDriver).findElementsInternal_(locator, this);
     } else {
@@ -1458,7 +1460,7 @@ class WebElement {
     let keysText: string = keysArray.join("");
     try {
       // Use fileDetector_ to possibly transform the input.
-      keysText = await driverImpl.fileDetector_.handleFile(this.driver_,
+      keysText = await driverImpl.fileDetector_.handleFile(driverImpl,
         keysText);
     } catch (ex: any) {
       this.log_.severe("Error trying parse string as a file with file detector; sending keys instead" + ex);
@@ -1590,7 +1592,7 @@ class ShadowRoot {
     return this.driver_.execute(cmd);
   }
   findElement(locator: any): ShadowRootPromise {
-    locator = by.checkedLocator(locator);
+    locator = by.getLocator(locator);
     let id: any;
     if (typeof locator === "function") {
       id = (this.driver_ as WebDriver).findElementInternal_(locator, this);
@@ -1603,7 +1605,7 @@ class ShadowRoot {
     return new ShadowRootPromise(this.driver_, id);
   }
   async findElements(locator: any): Promise<WebElement[]> {
-    locator = by.checkedLocator(locator);
+    locator = by.getLocator(locator);
     if (typeof locator === "function") {
       return (this.driver_ as WebDriver).findElementsInternal_(locator, this);
     } else {
