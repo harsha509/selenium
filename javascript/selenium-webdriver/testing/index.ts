@@ -30,143 +30,141 @@
  *     function maybe() { return Math.random() < 0.5; }
  */
 
-'use strict'
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { isatty } from 'node:tty';
+import * as chrome from '../chrome';
+import * as edge from '../edge';
+import * as firefox from '../firefox';
+import * as ie from '../ie';
+import * as remote from '../remote';
+import * as safari from '../safari';
+import { Browser } from '../lib/capabilities';
+import { Builder } from '../index';
+import { getBinaryPaths } from '../common/driverFinder';
 
-const fs = require('node:fs')
-const path = require('node:path')
-const { isatty } = require('node:tty')
-const chrome = require('../chrome')
-const edge = require('../edge')
-const firefox = require('../firefox')
-const ie = require('../ie')
-const remote = require('../remote')
-const safari = require('../safari')
-const { Browser } = require('../lib/capabilities')
-const { Builder } = require('../index')
-const { getBinaryPaths } = require('../common/driverFinder')
-
-let runfiles
+let runfiles: any;
 try {
   // Attempt to require @bazel/runfiles
-  runfiles = require('@bazel/runfiles').runfiles
+  runfiles = require('@bazel/runfiles').runfiles;
 } catch {
   // Fall through
 }
 
 /**
  * Describes a browser targeted by a {@linkplain suite test suite}.
- * @record
  */
-function TargetBrowser() {}
+export interface TargetBrowser {
+  /**
+   * The {@linkplain Browser name} of the targeted browser.
+   */
+  name: string;
 
-/**
- * The {@linkplain Browser name} of the targeted browser.
- * @type {string}
- */
-TargetBrowser.prototype.name
+  /**
+   * The specific version of the targeted browser, if any.
+   */
+  version?: string;
 
-/**
- * The specific version of the targeted browser, if any.
- * @type {(string|undefined)}
- */
-TargetBrowser.prototype.version
+  /**
+   * The specific {@linkplain ../lib/capabilities.Platform platform} for the
+   * targeted browser, if any.
+   */
+  platform?: string;
 
-/**
- * The specific {@linkplain ../lib/capabilities.Platform platform} for the
- * targeted browser, if any.
- * @type {(string|undefined)}.
- */
-TargetBrowser.prototype.platform
-
-/** @suppress {checkTypes} */
-function color(c, s) {
-  return isatty(process.stdout) ? `\u001b[${c}m${s}\u001b[0m` : s
+  /**
+   * Additional capabilities for the browser.
+   */
+  capabilities?: any;
 }
 
-function green(s) {
-  return color(32, s)
+function color(c: number, s: string): string {
+  return isatty(process.stdout) ? `\u001b[${c}m${s}\u001b[0m` : s;
 }
 
-function cyan(s) {
-  return color(36, s)
+function green(s: string): string {
+  return color(32, s);
 }
 
-function info(msg) {
-  console.info(`${green('[INFO]')} ${msg}`)
+function cyan(s: string): string {
+  return color(36, s);
 }
 
-function warn(msg) {
-  console.warn(`${cyan('[WARNING]')} ${msg}`)
+function info(msg: string): void {
+  console.info(`${green('[INFO]')} ${msg}`);
+}
+
+function warn(msg: string): void {
+  console.warn(`${cyan('[WARNING]')} ${msg}`);
 }
 
 /**
  * Extracts the browsers for a test suite to target from the `SELENIUM_BROWSER`
  * environment variable.
  *
- * @return {{name: string, version: string, platform: string}}[] the browsers to target.
+ * @return {TargetBrowser[]} the browsers to target.
  */
-function getBrowsersToTestFromEnv() {
-  let browsers = process.env['SELENIUM_BROWSER']
+function getBrowsersToTestFromEnv(): TargetBrowser[] {
+  let browsers = process.env['SELENIUM_BROWSER'];
   if (!browsers) {
-    return []
+    return [];
   }
   return browsers.split(',').map((spec) => {
-    const parts = spec.split(/:/, 3)
-    let name = parts[0]
+    const parts = spec.split(/:/, 3);
+    let name = parts[0];
     if (name === 'ie') {
-      name = Browser.INTERNET_EXPLORER
+      name = Browser.INTERNET_EXPLORER;
     } else if (name === 'edge') {
-      name = Browser.EDGE
+      name = Browser.EDGE;
     }
-    let version = parts[1]
-    let platform = parts[2]
-    return { name, version, platform }
-  })
+    let version = parts[1];
+    let platform = parts[2];
+    return { name, version, platform };
+  });
 }
 
 /**
- * @return {!Array<!TargetBrowser>} the browsers available for testing on this
+ * @return {TargetBrowser[]} the browsers available for testing on this
  *     system.
  */
-function getAvailableBrowsers() {
-  info(`Searching for WebDriver executables installed on the current system...`)
+function getAvailableBrowsers(): TargetBrowser[] {
+  info(`Searching for WebDriver executables installed on the current system...`);
 
-  let targets = [
+  let targets: [any, string, any?][] = [
     [getBinaryPaths(new chrome.Options()), Browser.CHROME],
     [getBinaryPaths(new edge.Options()), Browser.EDGE],
     [getBinaryPaths(new firefox.Options()), Browser.FIREFOX],
-  ]
+  ];
   if (process.platform === 'win32') {
-    targets.push([getBinaryPaths(new ie.Options()), Browser.INTERNET_EXPLORER])
+    targets.push([getBinaryPaths(new ie.Options()), Browser.INTERNET_EXPLORER]);
   }
   if (process.platform === 'darwin') {
-    targets.push([getBinaryPaths(new safari.Options()), Browser.SAFARI])
+    targets.push([getBinaryPaths(new safari.Options()), Browser.SAFARI]);
   }
 
-  let availableBrowsers = []
+  let availableBrowsers: TargetBrowser[] = [];
   for (let pair of targets) {
-    const driverPath = pair[0].driverPath
-    const browserPath = pair[0].browserPath
-    const name = pair[1]
-    const capabilities = pair[2]
+    const driverPath = pair[0].driverPath;
+    const browserPath = pair[0].browserPath;
+    const name = pair[1];
+    const capabilities = pair[2];
     if (driverPath.length > 0 && browserPath && browserPath.length > 0) {
-      info(`... located ${name}`)
-      availableBrowsers.push({ name, capabilities })
+      info(`... located ${name}`);
+      availableBrowsers.push({ name, capabilities });
     }
   }
 
   if (availableBrowsers.length === 0) {
-    warn(`Unable to locate any WebDriver executables for testing`)
+    warn(`Unable to locate any WebDriver executables for testing`);
   }
 
-  return availableBrowsers
+  return availableBrowsers;
 }
 
-let wasInit
-let targetBrowsers
-let seleniumJar
-let seleniumUrl
-let seleniumServer
+let wasInit: boolean;
+let targetBrowsers: TargetBrowser[];
+let seleniumJar: string | undefined;
+let seleniumUrl: string | undefined;
+let seleniumServer: remote.SeleniumServer | null = null;
 
 /**
  * Initializes this module by determining which browsers a
@@ -203,77 +201,77 @@ let seleniumServer
  *     scan `process.env` again to determine which browsers to run tests
  *     against.
  */
-function init(force = false) {
+export function init(force = false): void {
   if (wasInit && !force) {
-    return
+    return;
   }
-  wasInit = true
+  wasInit = true;
 
   // If force re-init, kill the current server if there is one.
   if (seleniumServer) {
-    seleniumServer.kill()
-    seleniumServer = null
+    seleniumServer.kill();
+    seleniumServer = null;
   }
 
-  seleniumJar = process.env['SELENIUM_SERVER_JAR']
-  seleniumUrl = process.env['SELENIUM_REMOTE_URL']
+  seleniumJar = process.env['SELENIUM_SERVER_JAR'];
+  seleniumUrl = process.env['SELENIUM_REMOTE_URL'];
   if (seleniumJar) {
-    info(`Using Selenium server jar: ${seleniumJar}`)
+    info(`Using Selenium server jar: ${seleniumJar}`);
   }
 
   if (seleniumUrl) {
-    info(`Using Selenium remote end: ${seleniumUrl}`)
+    info(`Using Selenium remote end: ${seleniumUrl}`);
   }
 
   if (seleniumJar && seleniumUrl) {
     throw Error(
       'Ambiguous test configuration: both SELENIUM_REMOTE_URL' +
-        ' && SELENIUM_SERVER_JAR environment variables are set',
-    )
+      ' && SELENIUM_SERVER_JAR environment variables are set',
+    );
   }
 
-  const envBrowsers = getBrowsersToTestFromEnv()
+  const envBrowsers = getBrowsersToTestFromEnv();
   if ((seleniumJar || seleniumUrl) && envBrowsers.length === 0) {
     throw Error(
       'Ambiguous test configuration: when either the SELENIUM_REMOTE_URL or' +
-        ' SELENIUM_SERVER_JAR environment variable is set, the' +
-        ' SELENIUM_BROWSER variable must also be set.',
-    )
+      ' SELENIUM_SERVER_JAR environment variable is set, the' +
+      ' SELENIUM_BROWSER variable must also be set.',
+    );
   }
 
-  targetBrowsers = envBrowsers.length > 0 ? envBrowsers : getAvailableBrowsers()
-  info(`Running tests against [${targetBrowsers.map((b) => b.name).join(', ')}]`)
+  targetBrowsers = envBrowsers.length > 0 ? envBrowsers : getAvailableBrowsers();
+  info(`Running tests against [${targetBrowsers.map((b) => b.name).join(', ')}]`);
 
   after(function () {
     if (seleniumServer) {
-      return seleniumServer.kill()
+      return seleniumServer.kill();
     }
-  })
+  });
 }
 
-const TARGET_MAP = /** !WeakMap<!Environment, !TargetBrowser> */ new WeakMap()
-const URL_MAP = /** !WeakMap<!Environment, ?(string|remote.SeleniumServer)> */ new WeakMap()
+const TARGET_MAP = new WeakMap<Environment, TargetBrowser>();
+const URL_MAP = new WeakMap<Environment, string | remote.SeleniumServer | null>();
 
 /**
  * Defines the environment a {@linkplain suite test suite} is running against.
  * @final
  */
-class Environment {
+export class Environment {
   /**
-   * @param {!TargetBrowser} browser the browser targetted in this environment.
-   * @param {?(string|remote.SeleniumServer)=} url remote URL of an existing
+   * @param {TargetBrowser} browser the browser targetted in this environment.
+   * @param {(string|remote.SeleniumServer)=} url remote URL of an existing
    *     Selenium server to test against.
    */
-  constructor(browser, url = undefined) {
-    browser = /** @type {!TargetBrowser} */ (Object.seal(Object.assign({}, browser)))
+  constructor(browser: TargetBrowser, url: string | remote.SeleniumServer | undefined = undefined) {
+    browser = Object.seal(Object.assign({}, browser));
 
-    TARGET_MAP.set(this, browser)
-    URL_MAP.set(this, url || null)
+    TARGET_MAP.set(this, browser);
+    URL_MAP.set(this, url || null);
   }
 
-  /** @return {!TargetBrowser} the target browser for this test environment. */
-  get browser() {
-    return TARGET_MAP.get(this)
+  /** @return {TargetBrowser} the target browser for this test environment. */
+  get browser(): TargetBrowser {
+    return TARGET_MAP.get(this)!;
   }
 
   /**
@@ -281,99 +279,97 @@ class Environment {
    * if the {@linkplain #browser current browser} is in the list of
    * `browsersToIgnore`.
    *
-   * @param {...(string|!Browser)} browsersToIgnore the browsers that should
+   * @param {...(string|Browser)} browsersToIgnore the browsers that should
    *     be ignored.
    * @return {function(): boolean} a new predicate function.
    */
-  browsers(...browsersToIgnore) {
-    return () => browsersToIgnore.indexOf(this.browser.name) !== -1
+  browsers(...browsersToIgnore: (string | Browser)[]): () => boolean {
+    return () => browsersToIgnore.indexOf(this.browser.name) !== -1;
   }
 
   /**
-   * @return {!Builder} a new WebDriver builder configured to target this
+   * @return {Builder} a new WebDriver builder configured to target this
    *     environment's {@linkplain #browser browser}.
    */
-  builder() {
-    const browser = this.browser
-    const urlOrServer = URL_MAP.get(this)
+  builder(): Builder {
+    const browser = this.browser;
+    const urlOrServer = URL_MAP.get(this);
 
-    const builder = new Builder()
+    const builder = new Builder();
 
     // Sniff the environment variables for paths to use for the common browsers
     // Chrome
     if ('SE_CHROMEDRIVER' in process.env) {
-      const found = locate(process.env.SE_CHROMEDRIVER)
-      const service = new chrome.ServiceBuilder(found)
-      builder.setChromeService(service)
+      const found = locate(process.env.SE_CHROMEDRIVER!);
+      const service = new chrome.ServiceBuilder(found);
+      builder.setChromeService(service);
     }
     if ('SE_CHROME' in process.env) {
-      const binary = locate(process.env.SE_CHROME)
-      const options = new chrome.Options()
-      options.setChromeBinaryPath(binary)
-      options.setAcceptInsecureCerts(true)
-      options.addArguments('disable-infobars', 'disable-breakpad', 'disable-dev-shm-usage', 'no-sandbox')
-      builder.setChromeOptions(options)
+      const binary = locate(process.env.SE_CHROME!);
+      const options = new chrome.Options();
+      options.setChromeBinaryPath(binary);
+      options.setAcceptInsecureCerts(true);
+      options.addArguments('disable-infobars', 'disable-breakpad', 'disable-dev-shm-usage', 'no-sandbox');
+      builder.setChromeOptions(options);
     }
     // Edge
     // Firefox
     if ('SE_GECKODRIVER' in process.env) {
-      const found = locate(process.env.SE_GECKODRIVER)
-      const service = new firefox.ServiceBuilder(found)
-      builder.setFirefoxService(service)
+      const found = locate(process.env.SE_GECKODRIVER!);
+      const service = new firefox.ServiceBuilder(found);
+      builder.setFirefoxService(service);
     }
     if ('SE_FIREFOX' in process.env) {
-      const binary = locate(process.env.SE_FIREFOX)
-      const options = new firefox.Options()
-      options.enableBidi()
-      options.setBinary(binary)
-      builder.setFirefoxOptions(options)
+      const binary = locate(process.env.SE_FIREFOX!);
+      const options = new firefox.Options();
+      options.enableBidi();
+      options.setBinary(binary);
+      builder.setFirefoxOptions(options);
     }
 
-    builder.disableEnvironmentOverrides()
+    builder.disableEnvironmentOverrides();
 
-    const realBuild = builder.build
+    const realBuild = builder.build;
     builder.build = function () {
-      builder.forBrowser(browser.name, browser.version, browser.platform)
+      builder.forBrowser(browser.name, browser.version, browser.platform);
 
       if (browser.capabilities) {
-        builder.getCapabilities().merge(browser.capabilities)
+        builder.getCapabilities().merge(browser.capabilities);
       }
 
       if (browser.name === 'firefox') {
-        builder.setCapability('moz:debuggerAddress', true)
+        builder.setCapability('moz:debuggerAddress', true);
       }
 
       // Enable BiDi for supporting browsers.
       if (browser.name === Browser.FIREFOX || browser.name === Browser.CHROME || browser.name === Browser.EDGE) {
-        builder.setCapability('webSocketUrl', true)
-        builder.setCapability('unhandledPromptBehavior', 'ignore')
+        builder.setCapability('webSocketUrl', true);
+        builder.setCapability('unhandledPromptBehavior', 'ignore');
       }
 
       if (typeof urlOrServer === 'string') {
-        builder.usingServer(urlOrServer)
+        builder.usingServer(urlOrServer);
       } else if (urlOrServer) {
-        builder.usingServer(urlOrServer.address())
+        builder.usingServer(urlOrServer.address());
       }
-      return realBuild.call(builder)
-    }
+      return realBuild.call(builder);
+    };
 
-    return builder
+    return builder;
   }
 }
 
 /**
  * Configuration options for a {@linkplain ./index.suite test suite}.
- * @record
  */
-function SuiteOptions() {}
+export interface SuiteOptions {
+  /**
+   * The browsers to run the test suite against.
+   */
+  browsers?: (Browser | TargetBrowser)[];
+}
 
-/**
- * The browsers to run the test suite against.
- * @type {!Array<!(Browser|TargetBrowser)>}
- */
-SuiteOptions.prototype.browsers
-
-let inSuite = false
+let inSuite = false;
 
 /**
  * Defines a test suite by calling the provided function once for each of the
@@ -414,59 +410,68 @@ let inSuite = false
  *
  *     SELENIUM_BROWSER=firefox mocha -t 120000 example_test.js
  *
- * @param {function(!Environment)} fn the function to call to build the test
+ * @param {function(Environment)} fn the function to call to build the test
  *     suite.
  * @param {SuiteOptions=} options configuration options.
  */
-function suite(fn, options = undefined) {
+export function suite(fn: (env: Environment) => void, options: SuiteOptions = {}): void {
   if (inSuite) {
-    throw Error('Calls to suite() may not be nested')
+    throw Error('Calls to suite() may not be nested');
   }
   try {
-    init()
-    inSuite = true
+    init();
+    inSuite = true;
 
-    const suiteBrowsers = new Map()
+    const suiteBrowsers = new Map<string, TargetBrowser>();
     if (options && options.browsers) {
       for (let browser of options.browsers) {
         if (typeof browser === 'string') {
-          suiteBrowsers.set(browser, { name: browser })
+          suiteBrowsers.set(browser, { name: browser });
         } else {
-          suiteBrowsers.set(browser.name, browser)
+          suiteBrowsers.set((browser as TargetBrowser).name, browser as TargetBrowser);
         }
       }
     }
 
     for (let browser of targetBrowsers) {
       if (suiteBrowsers.size > 0 && !suiteBrowsers.has(browser.name)) {
-        continue
+        continue;
       }
 
       describe(`[${browser.name}]`, function () {
         if (!seleniumUrl && seleniumJar && !seleniumServer) {
-          seleniumServer = new remote.SeleniumServer(seleniumJar)
+          seleniumServer = new remote.SeleniumServer(seleniumJar);
 
-          const startTimeout = 65 * 1000
+          const startTimeout = 65 * 1000;
 
           function startSelenium() {
             if (typeof this.timeout === 'function') {
-              this.timeout(startTimeout) // For mocha.
+              this.timeout(startTimeout); // For mocha.
             }
 
-            info(`Starting selenium server ${seleniumJar}`)
-            return seleniumServer.start(60 * 1000)
+            info(`Starting selenium server ${seleniumJar}`);
+            return seleniumServer!.start(60 * 1000);
           }
 
-          const /** !Function */ beforeHook = global.beforeAll || global.before
-          beforeHook(startSelenium, startTimeout)
+          const beforeHook = (global as any).beforeAll || (global as any).before;
+          beforeHook(startSelenium, startTimeout);
         }
 
-        fn(new Environment(browser, seleniumUrl || seleniumServer))
-      })
+        fn(new Environment(browser, seleniumUrl || seleniumServer));
+      });
     }
   } finally {
-    inSuite = false
+    inSuite = false;
   }
+}
+
+interface TestHooks {
+  describe: Function;
+  xdescribe: Function;
+  it: Function;
+  xit: Function;
+  fdescribe: Function;
+  fit: Function;
 }
 
 /**
@@ -491,125 +496,115 @@ function suite(fn, options = undefined) {
  *
  * @param {function(): boolean} predicateFn A predicate to call to determine
  *     if the test should be suppressed. This function MUST be synchronous.
- * @return {{describe: !Function, it: !Function}} an object with wrapped
+ * @return {{describe: Function, it: Function}} an object with wrapped
  *     versions of the `describe` and `it` test functions.
  */
-function ignore(predicateFn) {
-  const isJasmine = global.jasmine && typeof global.jasmine === 'object'
+export function ignore(predicateFn: () => boolean): { describe: Function; it: Function } {
+  const isJasmine = (global as any).jasmine && typeof (global as any).jasmine === 'object';
 
-  const hooks = {
+  const hooks: TestHooks = {
     describe: getTestHook('describe'),
     xdescribe: getTestHook('xdescribe'),
     it: getTestHook('it'),
     xit: getTestHook('xit'),
-  }
-  hooks.fdescribe = isJasmine ? getTestHook('fdescribe') : hooks.describe.only
-  hooks.fit = isJasmine ? getTestHook('fit') : hooks.it.only
+    fdescribe: isJasmine ? getTestHook('fdescribe') : (getTestHook('describe') as any).only,
+    fit: isJasmine ? getTestHook('fit') : (getTestHook('it') as any).only,
+};
 
-  let describe = wrap(hooks.xdescribe, hooks.describe)
-  let fdescribe = wrap(hooks.xdescribe, hooks.fdescribe)
+  let describe = wrap(hooks.xdescribe, hooks.describe);
+  let fdescribe = wrap(hooks.xdescribe, hooks.fdescribe);
   //eslint-disable-next-line no-only-tests/no-only-tests
-  describe.only = fdescribe
+  (describe as any).only = fdescribe;
 
-  let it = wrap(hooks.xit, hooks.it)
-  let fit = wrap(hooks.xit, hooks.fit)
+  let it = wrap(hooks.xit, hooks.it);
+  let fit = wrap(hooks.xit, hooks.fit);
   //eslint-disable-next-line no-only-tests/no-only-tests
-  it.only = fit
+  (it as any).only = fit;
 
-  return { describe, it }
+  return { describe, it };
 
-  function wrap(onSkip, onRun) {
-    return function (...args) {
+  function wrap(onSkip: Function, onRun: Function): Function {
+    return function (...args: any[]) {
       if (predicateFn()) {
-        onSkip(...args)
+        onSkip(...args);
       } else {
-        onRun(...args)
+        onRun(...args);
       }
-    }
+    };
   }
 }
 
 /**
  * @param {string} name
- * @return {!Function}
+ * @return {Function}
  * @throws {TypeError}
  */
-function getTestHook(name) {
-  let fn = global[name]
-  let type = typeof fn
+function getTestHook(name: string): Function {
+  let fn = (global as any)[name];
+  let type = typeof fn;
   if (type !== 'function') {
     throw TypeError(
       `Expected global.${name} to be a function, but is ${type}.` +
-        ' This can happen if you try using this module when running with' +
-        ' node directly instead of using jasmine or mocha',
-    )
+      ' This can happen if you try using this module when running with' +
+      ' node directly instead of using jasmine or mocha',
+    );
   }
-  return fn
+  return fn;
 }
 
-function locate(fileLike) {
+function locate(fileLike: string): string {
   if (fs.existsSync(fileLike)) {
-    return fileLike
+    return fileLike;
   }
 
   if (!runfiles) {
-    throw new Error('Unable to find ' + fileLike)
+    throw new Error('Unable to find ' + fileLike);
   }
 
   try {
-    return runfiles.resolve(fileLike)
+    return runfiles.resolve(fileLike);
   } catch {
     // Fall through
   }
 
   // Is the item in the workspace?
   try {
-    return runfiles.resolveWorkspaceRelative(fileLike)
+    return runfiles.resolveWorkspaceRelative(fileLike);
   } catch {
     // Fall through
   }
 
   // Find the repo mapping file
-  let repoMappingFile
+  let repoMappingFile;
   try {
-    repoMappingFile = runfiles.resolve('_repo_mapping')
+    repoMappingFile = runfiles.resolve('_repo_mapping');
   } catch {
-    throw new Error('Unable to locate (no repo mapping file): ' + fileLike)
+    throw new Error('Unable to locate (no repo mapping file): ' + fileLike);
   }
-  const lines = fs.readFileSync(repoMappingFile, { encoding: 'utf8' }).split('\n')
+  const lines = fs.readFileSync(repoMappingFile, { encoding: 'utf8' }).split('\n');
 
   // Build a map of "repo we declared we need" to "path"
-  const mapping = {}
+  const mapping: Record<string, string> = {};
   for (const line of lines) {
     if (line.startsWith(',')) {
-      const parts = line.split(',', 3)
-      mapping[parts[1]] = parts[2]
+      const parts = line.split(',', 3);
+      mapping[parts[1]] = parts[2];
     }
   }
 
   // Get the first segment of the path
-  const pathSegments = fileLike.split('/')
+  const pathSegments = fileLike.split('/');
   if (!pathSegments.length) {
-    throw new Error('Unable to locate ' + fileLike)
+    throw new Error('Unable to locate ' + fileLike);
   }
 
-  pathSegments[0] = mapping[pathSegments[0]] ? mapping[pathSegments[0]] : '_main'
+  pathSegments[0] = mapping[pathSegments[0]] ? mapping[pathSegments[0]] : '_main';
 
   try {
-    return runfiles.resolve(path.join(...pathSegments))
+    return runfiles.resolve(path.join(...pathSegments));
   } catch {
     // Fall through
   }
 
-  throw new Error('Unable to find ' + fileLike)
-}
-
-// PUBLIC API
-
-module.exports = {
-  Environment,
-  SuiteOptions,
-  init,
-  ignore,
-  suite,
+  throw new Error('Unable to find ' + fileLike);
 }

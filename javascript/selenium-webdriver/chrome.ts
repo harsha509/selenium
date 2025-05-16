@@ -52,7 +52,7 @@
 import { Browser } from './lib/capabilities';
 import * as chromium from './chromium';
 import * as remote from './remote';
-import * as http from './http';
+import { Executor } from './lib/http';
 import { Capabilities } from './lib/capabilities';
 
 const CHROME_CAPABILITY_KEY = 'goog:chromeOptions';
@@ -152,7 +152,7 @@ export class Driver extends chromium.Driver {
    */
   static createSession(
     opt_config?: Capabilities | Options,
-    opt_serviceExecutor?: remote.DriverService | http.Executor
+    opt_serviceExecutor?: remote.DriverService | Executor
   ): Driver {
     const caps = opt_config || new Options();
     return super.createSession(

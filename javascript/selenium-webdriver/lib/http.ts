@@ -23,58 +23,56 @@
  * the {@link Executor} to send commands to the remote end.
  */
 
-'use strict'
+import * as path from 'node:path';
+import * as cmd from './command';
+import * as error from './error';
+import * as logging from './logging';
+import * as promise from './promise';
+import { Session } from './session';
+import * as webElement from './webelement';
+import { isObject } from './util';
 
-const path = require('node:path')
-const cmd = require('./command')
-const error = require('./error')
-const logging = require('./logging')
-const promise = require('./promise')
-const { Session } = require('./session')
-const webElement = require('./webelement')
-const { isObject } = require('./util')
+const log_ = logging.getLogger(`${logging.Type.DRIVER}.http`);
 
-const log_ = logging.getLogger(`${logging.Type.DRIVER}.http`)
-
-const getAttribute = requireAtom('get-attribute.js', '//javascript/selenium-webdriver/lib/atoms:get-attribute.js')
-const isDisplayed = requireAtom('is-displayed.js', '//javascript/selenium-webdriver/lib/atoms:is-displayed.js')
-const findElements = requireAtom('find-elements.js', '//javascript/selenium-webdriver/lib/atoms:find-elements.js')
+const getAttribute = requireAtom('get-attribute.js', '//javascript/selenium-webdriver/lib/atoms:get-attribute.js');
+const isDisplayed = requireAtom('is-displayed.js', '//javascript/selenium-webdriver/lib/atoms:is-displayed.js');
+const findElements = requireAtom('find-elements.js', '//javascript/selenium-webdriver/lib/atoms:find-elements.js');
 
 /**
  * @param {string} module
  * @param {string} bazelTarget
  * @return {!Function}
  */
-function requireAtom(module, bazelTarget) {
+function requireAtom(module: string, bazelTarget: string): Function {
   try {
-    return require('./atoms/' + module)
+    return require('./atoms/' + module);
   } catch (ex) {
     try {
-      const file = bazelTarget.slice(2).replace(':', '/')
-      log_.log(`../../../bazel-bin/${file}`)
-      return require(path.resolve(`../../../bazel-bin/${file}`))
+      const file = bazelTarget.slice(2).replace(':', '/');
+      log_.log(`../../../bazel-bin/${file}`);
+      return require(path.resolve(`../../../bazel-bin/${file}`));
     } catch (ex2) {
-      log_.severe(ex2)
+      log_.severe(ex2);
       throw Error(
         `Failed to import atoms module ${module}. If running in dev mode, you` +
-          ` need to run \`bazel build ${bazelTarget}\` from the project` +
-          `root: ${ex}`,
-      )
+        ` need to run \`bazel build ${bazelTarget}\` from the project` +
+        `root: ${ex}`,
+      );
     }
   }
 }
 
 /**
  * Converts a headers map to a HTTP header block string.
- * @param {!Map<string, string>} headers The map to convert.
+ * @param {Map<string, string>} headers The map to convert.
  * @return {string} The headers as a string.
  */
-function headersToString(headers) {
-  const ret = []
+function headersToString(headers: Map<string, string>): string {
+  const ret: string[] = [];
   headers.forEach(function (value, name) {
-    ret.push(`${name.toLowerCase()}: ${value}`)
-  })
-  return ret.join('\n')
+    ret.push(`${name.toLowerCase()}: ${value}`);
+  });
+  return ret.join('\n');
 }
 
 /**
@@ -84,26 +82,31 @@ function headersToString(headers) {
  * @final
  */
 class Request {
+  method: string;
+  path: string;
+  data: any;
+  headers: Map<string, string>;
+
   /**
    * @param {string} method The HTTP method to use for the request.
    * @param {string} path The path on the server to send the request to.
    * @param {Object=} opt_data This request's non-serialized JSON payload data.
    */
-  constructor(method, path, opt_data) {
-    this.method = /** string */ method
-    this.path = /** string */ path
-    this.data = /** Object */ opt_data
-    this.headers = /** !Map<string, string> */ new Map([['Accept', 'application/json; charset=utf-8']])
+  constructor(method: string, path: string, opt_data?: any) {
+    this.method = method;
+    this.path = path;
+    this.data = opt_data;
+    this.headers = new Map([['Accept', 'application/json; charset=utf-8']]);
   }
 
   /** @override */
-  toString() {
-    let ret = `${this.method} ${this.path} HTTP/1.1\n`
-    ret += headersToString(this.headers) + '\n\n'
+  toString(): string {
+    let ret = `${this.method} ${this.path} HTTP/1.1\n`;
+    ret += headersToString(this.headers) + '\n\n';
     if (this.data) {
-      ret += JSON.stringify(this.data)
+      ret += JSON.stringify(this.data);
     }
-    return ret
+    return ret;
   }
 }
 
@@ -112,28 +115,32 @@ class Request {
  * @final
  */
 class Response {
+  status: number;
+  body: string;
+  headers: Map<string, string>;
+
   /**
    * @param {number} status The response code.
    * @param {!Object<string>} headers The response headers. All header names
    *     will be converted to lowercase strings for consistent lookups.
    * @param {string} body The response body.
    */
-  constructor(status, headers, body) {
-    this.status = /** number */ status
-    this.body = /** string */ body
-    this.headers = /** !Map<string, string>*/ new Map()
+  constructor(status: number, headers: Record<string, string>, body: string) {
+    this.status = status;
+    this.body = body;
+    this.headers = new Map();
     for (let header in headers) {
-      this.headers.set(header.toLowerCase(), headers[header])
+      this.headers.set(header.toLowerCase(), headers[header]);
     }
   }
 
   /** @override */
-  toString() {
-    let ret = `HTTP/1.1 ${this.status}\n${headersToString(this.headers)}\n\n`
+  toString(): string {
+    let ret = `HTTP/1.1 ${this.status}\n${headersToString(this.headers)}\n\n`;
     if (this.body) {
-      ret += this.body
+      ret += this.body;
     }
-    return ret
+    return ret;
   }
 }
 
@@ -142,41 +149,45 @@ const Atom = {
   GET_ATTRIBUTE: getAttribute,
   IS_DISPLAYED: isDisplayed,
   FIND_ELEMENTS: findElements,
+};
+
+function post(path: string): CommandSpec {
+  return resource('POST', path);
 }
 
-function post(path) {
-  return resource('POST', path)
+function del(path: string): CommandSpec {
+  return resource('DELETE', path);
 }
 
-function del(path) {
-  return resource('DELETE', path)
+function get(path: string): CommandSpec {
+  return resource('GET', path);
 }
 
-function get(path) {
-  return resource('GET', path)
+function resource(method: string, path: string): CommandSpec {
+  return { method: method, path: path };
 }
 
-function resource(method, path) {
-  return { method: method, path: path }
+/** CommandSpec type definition */
+interface CommandSpec {
+  method: string;
+  path: string;
 }
 
-/** @typedef {{method: string, path: string}} */
-var CommandSpec
-
-/** @typedef {function(!cmd.Command): !cmd.Command} */
-var CommandTransformer
+/** CommandTransformer type definition */
+type CommandTransformer = (command: cmd.Command) => cmd.Command;
 
 class InternalTypeError extends TypeError {}
 
 /**
  * @param {!cmd.Command} command The initial command.
  * @param {Atom} atom The name of the atom to execute.
- * @param params
- * @return {!Command} The transformed command to execute.
+ * @param {string} name The name of the atom.
+ * @param {...string} params The parameters to pass to the atom.
+ * @return {!cmd.Command} The transformed command to execute.
  */
-function toExecuteAtomCommand(command, atom, name, ...params) {
+function toExecuteAtomCommand(command: cmd.Command, atom: Function, name: string, ...params: string[]): cmd.Command {
   if (typeof atom !== 'function') {
-    throw new InternalTypeError('atom is not a function: ' + typeof atom)
+    throw new InternalTypeError('atom is not a function: ' + typeof atom);
   }
 
   return new cmd.Command(cmd.Name.EXECUTE_SCRIPT)
@@ -185,11 +196,11 @@ function toExecuteAtomCommand(command, atom, name, ...params) {
     .setParameter(
       'args',
       params.map((param) => command.getParameter(param)),
-    )
+    );
 }
 
 /** @const {!Map<string, (CommandSpec|CommandTransformer)>} */
-const W3C_COMMAND_MAP = new Map([
+const W3C_COMMAND_MAP = new Map<string, CommandSpec | CommandTransformer>([
   // Session management.
   [cmd.Name.NEW_SESSION, post('/session')],
   [cmd.Name.QUIT, del('/session/:sessionId')],
@@ -244,7 +255,7 @@ const W3C_COMMAND_MAP = new Map([
   [
     cmd.Name.FIND_ELEMENTS_RELATIVE,
     (cmd) => {
-      return toExecuteAtomCommand(cmd, Atom.FIND_ELEMENTS, 'findElements', 'args')
+      return toExecuteAtomCommand(cmd, Atom.FIND_ELEMENTS, 'findElements', 'args');
     },
   ],
   [cmd.Name.FIND_CHILD_ELEMENT, post('/session/:sessionId/element/:id/element')],
@@ -255,7 +266,7 @@ const W3C_COMMAND_MAP = new Map([
   [
     cmd.Name.GET_ELEMENT_ATTRIBUTE,
     (cmd) => {
-      return toExecuteAtomCommand(cmd, Atom.GET_ATTRIBUTE, 'getAttribute', 'id', 'name')
+      return toExecuteAtomCommand(cmd, Atom.GET_ATTRIBUTE, 'getAttribute', 'id', 'name');
     },
   ],
   [cmd.Name.GET_ELEMENT_PROPERTY, get('/session/:sessionId/element/:id/property/:name')],
@@ -273,7 +284,7 @@ const W3C_COMMAND_MAP = new Map([
   [
     cmd.Name.IS_ELEMENT_DISPLAYED,
     (cmd) => {
-      return toExecuteAtomCommand(cmd, Atom.IS_DISPLAYED, 'isDisplayed', 'id')
+      return toExecuteAtomCommand(cmd, Atom.IS_DISPLAYED, 'isDisplayed', 'id');
     },
   ],
 
@@ -330,14 +341,14 @@ const W3C_COMMAND_MAP = new Map([
   [cmd.Name.RESET_COOLDOWN, post(`/session/:sessionId/fedcm/resetcooldown`)],
   [cmd.Name.CLICK_DIALOG_BUTTON, post(`/session/:sessionId/fedcm/clickdialogbutton`)],
   [cmd.Name.GET_ACCOUNTS, get(`/session/:sessionId/fedcm/accountlist`)],
-])
+]);
 
 /**
  * Handles sending HTTP messages to a remote end.
  *
  * @interface
  */
-class Client {
+interface Client {
   /**
    * Sends a request to the server. The client will automatically follow any
    * redirects returned by the server, fulfilling the returned promise with the
@@ -347,7 +358,7 @@ class Client {
    * @return {!Promise<Response>} A promise that will be fulfilled with the
    *     server's response.
    */
-  send(httpRequest) {}
+  send(httpRequest: Request): Promise<Response>;
 }
 
 /**
@@ -357,36 +368,36 @@ class Client {
  * @return {!Request} A promise that will resolve with the
  *     command to execute.
  */
-function buildRequest(customCommands, command) {
-  log_.finest(() => `Translating command: ${command.getName()}`)
-  let spec = customCommands && customCommands.get(command.getName())
+function buildRequest(customCommands: Map<string, CommandSpec> | null, command: cmd.Command): Request {
+  log_.finest(() => `Translating command: ${command.getName()}`);
+  let spec = customCommands && customCommands.get(command.getName());
   if (spec) {
-    return toHttpRequest(spec)
+    return toHttpRequest(spec);
   }
 
-  spec = W3C_COMMAND_MAP.get(command.getName())
+  spec = W3C_COMMAND_MAP.get(command.getName());
   if (typeof spec === 'function') {
-    log_.finest(() => `Transforming command for W3C: ${command.getName()}`)
-    let newCommand = spec(command)
-    return buildRequest(customCommands, newCommand)
+    log_.finest(() => `Transforming command for W3C: ${command.getName()}`);
+    let newCommand = spec(command);
+    return buildRequest(customCommands, newCommand);
   } else if (spec) {
-    return toHttpRequest(spec)
+    return toHttpRequest(spec);
   }
-  throw new error.UnknownCommandError('Unrecognized command: ' + command.getName())
+  throw new error.UnknownCommandError('Unrecognized command: ' + command.getName());
 
   /**
    * @param {CommandSpec} resource
    * @return {!Request}
    */
-  function toHttpRequest(resource) {
-    log_.finest(() => `Building HTTP request: ${JSON.stringify(resource)}`)
-    let parameters = command.getParameters()
-    let path = buildPath(resource.path, parameters)
-    return new Request(resource.method, path, parameters)
+  function toHttpRequest(resource: CommandSpec): Request {
+    log_.finest(() => `Building HTTP request: ${JSON.stringify(resource)}`);
+    let parameters = command.getParameters();
+    let path = buildPath(resource.path, parameters);
+    return new Request(resource.method, path, parameters);
   }
 }
 
-const CLIENTS = /** !WeakMap<!Executor, !(Client|IThenable<!Client>)> */ new WeakMap()
+const CLIENTS = new WeakMap<Executor, Client | Promise<Client>>();
 
 /**
  * A command executor that communicates with the server using JSON over HTTP.
@@ -401,20 +412,24 @@ const CLIENTS = /** !WeakMap<!Executor, !(Client|IThenable<!Client>)> */ new Wea
  *
  * @implements {cmd.Executor}
  */
-class Executor {
+class Executor implements cmd.Executor {
+  private customCommands_: Map<string, CommandSpec> | null;
+  private log_: logging.Logger;
+  public w3c?: boolean;
+
   /**
-   * @param {!(Client|IThenable<!Client>)} client The client to use for sending
+   * @param {!(Client|Promise<Client>)} client The client to use for sending
    *     requests to the server, or a promise-like object that will resolve
    *     to the client.
    */
-  constructor(client) {
-    CLIENTS.set(this, client)
+  constructor(client: Client | Promise<Client>) {
+    CLIENTS.set(this, client);
 
     /** @private {Map<string, CommandSpec>} */
-    this.customCommands_ = null
+    this.customCommands_ = null;
 
     /** @private {!logging.Logger} */
-    this.log_ = logging.getLogger(`${logging.Type.DRIVER}.http.Executor`)
+    this.log_ = logging.getLogger(`${logging.Type.DRIVER}.http.Executor`);
   }
 
   /**
@@ -430,48 +445,48 @@ class Executor {
    *     the WebDriver server's command root and of the form
    *     "/path/:variable/segment".
    */
-  defineCommand(name, method, path) {
+  defineCommand(name: string, method: string, path: string): void {
     if (!this.customCommands_) {
-      this.customCommands_ = new Map()
+      this.customCommands_ = new Map();
     }
-    this.customCommands_.set(name, { method, path })
+    this.customCommands_.set(name, { method, path });
   }
 
   /** @override */
-  async execute(command) {
-    let request = buildRequest(this.customCommands_, command)
-    this.log_.finer(() => `>>> ${request.method} ${request.path}`)
+  async execute(command: cmd.Command): Promise<any> {
+    let request = buildRequest(this.customCommands_, command);
+    this.log_.finer(() => `>>> ${request.method} ${request.path}`);
 
-    let client = CLIENTS.get(this)
+    let client = CLIENTS.get(this);
     if (promise.isPromise(client)) {
-      client = await client
-      CLIENTS.set(this, client)
+      client = await client;
+      CLIENTS.set(this, client);
     }
 
-    let response = await client.send(request)
-    this.log_.finer(() => `>>>\n${request}\n<<<\n${response}`)
+    let response = await client!.send(request);
+    this.log_.finer(() => `>>>\n${request}\n<<<\n${response}`);
 
-    let httpResponse = /** @type {!Response} */ (response)
+    let httpResponse = response;
 
-    let { isW3C, value } = parseHttpResponse(command, httpResponse)
+    let { isW3C, value } = parseHttpResponse(command, httpResponse);
 
     if (command.getName() === cmd.Name.NEW_SESSION) {
       if (!value || !value.sessionId) {
-        throw new error.WebDriverError(`Unable to parse new session response: ${response.body}`)
+        throw new error.WebDriverError(`Unable to parse new session response: ${response.body}`);
       }
 
       // The remote end is a W3C compliant server if there is no `status`
       // field in the response.
       if (command.getName() === cmd.Name.NEW_SESSION) {
-        this.w3c = this.w3c || isW3C
+        this.w3c = this.w3c || isW3C;
       }
 
       // No implementations use the `capabilities` key yet...
-      let capabilities = value.capabilities || value.value
-      return new Session(/** @type {{sessionId: string}} */ (value).sessionId, capabilities)
+      let capabilities = value.capabilities || value.value;
+      return new Session(value.sessionId, capabilities);
     }
 
-    return typeof value === 'undefined' ? null : value
+    return typeof value === 'undefined' ? null : value;
   }
 }
 
@@ -479,13 +494,18 @@ class Executor {
  * @param {string} str .
  * @return {?} .
  */
-function tryParse(str) {
+function tryParse(str: string): any {
   try {
-    return JSON.parse(str)
+    return JSON.parse(str);
     /*eslint no-unused-vars: "off"*/
   } catch (ignored) {
     // Do nothing.
   }
+}
+
+interface ParsedResponse {
+  isW3C: boolean;
+  value: any;
 }
 
 /**
@@ -500,48 +520,48 @@ function tryParse(str) {
  *     W3C WebDriver spec, and `value`, the actual response value.
  * @throws {WebDriverError} If the HTTP response is an error.
  */
-function parseHttpResponse(command, httpResponse) {
+function parseHttpResponse(command: cmd.Command, httpResponse: Response): ParsedResponse {
   if (httpResponse.status < 200) {
     // This should never happen, but throw the raw response so users report it.
-    throw new error.WebDriverError(`Unexpected HTTP response:\n${httpResponse}`)
+    throw new error.WebDriverError(`Unexpected HTTP response:\n${httpResponse}`);
   }
 
-  let parsed = tryParse(httpResponse.body)
+  let parsed = tryParse(httpResponse.body);
 
   if (parsed && typeof parsed === 'object') {
-    let value = parsed.value
-    let isW3C = isObject(value) && typeof parsed.status === 'undefined'
+    let value = parsed.value;
+    let isW3C = isObject(value) && typeof parsed.status === 'undefined';
 
     if (!isW3C) {
-      error.checkLegacyResponse(parsed)
+      error.checkLegacyResponse(parsed);
 
       // Adjust legacy new session responses to look like W3C to simplify
       // later processing.
       if (command.getName() === cmd.Name.NEW_SESSION) {
-        value = parsed
+        value = parsed;
       }
     } else if (httpResponse.status > 399) {
-      error.throwDecodedError(value)
+      error.throwDecodedError(value);
     }
 
-    return { isW3C, value }
+    return { isW3C, value };
   }
 
   if (parsed !== undefined) {
-    return { isW3C: false, value: parsed }
+    return { isW3C: false, value: parsed };
   }
 
-  let value = httpResponse.body.replace(/\r\n/g, '\n')
+  let value = httpResponse.body.replace(/\r\n/g, '\n');
 
   // 404 represents an unknown command; anything else > 399 is a generic unknown
   // error.
   if (httpResponse.status === 404) {
-    throw new error.UnsupportedOperationError(command.getName() + ': ' + value)
+    throw new error.UnsupportedOperationError(command.getName() + ': ' + value);
   } else if (httpResponse.status >= 400) {
-    throw new error.WebDriverError(value)
+    throw new error.WebDriverError(value);
   }
 
-  return { isW3C: false, value: value || null }
+  return { isW3C: false, value: value || null };
 }
 
 /**
@@ -553,35 +573,35 @@ function parseHttpResponse(command, httpResponse) {
  * @param {!Object<*>} parameters The parameters object to splice into the path.
  * @return {string} The modified path.
  */
-function buildPath(path, parameters) {
-  let pathParameters = path.match(/\/:(\w+)\b/g)
+function buildPath(path: string, parameters: Record<string, any>): string {
+  let pathParameters = path.match(/\/:(\w+)\b/g);
   if (pathParameters) {
     for (let i = 0; i < pathParameters.length; ++i) {
-      let key = pathParameters[i].substring(2) // Trim the /:
+      let key = pathParameters[i].substring(2); // Trim the /:
       if (key in parameters) {
-        let value = parameters[key]
+        let value = parameters[key];
         if (webElement.isId(value)) {
           // When inserting a WebElement into the URL, only use its ID value,
           // not the full JSON.
-          value = webElement.extractId(value)
+          value = webElement.extractId(value);
         }
-        path = path.replace(pathParameters[i], '/' + value)
-        delete parameters[key]
+        path = path.replace(pathParameters[i], '/' + value);
+        delete parameters[key];
       } else {
-        throw new error.InvalidArgumentError('Missing required parameter: ' + key)
+        throw new error.InvalidArgumentError('Missing required parameter: ' + key);
       }
     }
   }
-  return path
+  return path;
 }
 
 // PUBLIC API
 
-module.exports = {
+export {
   Executor,
   Client,
   Request,
   Response,
   // Exported for testing.
   buildPath,
-}
+};

@@ -15,75 +15,84 @@
 // specific language governing permissions and limitations
 // under the License.
 
-class HttpResponse {
+interface Header {
+  name: string;
+  value: string;
+}
+
+export class HttpResponse {
+  private returnBody: string;
+  private returnHeaders: Header[];
+  private returnMethod: string;
+  private returnStatus: number;
+  public urlToIntercept: string;
+
   /**
    * Creates a HTTP Response that will be used to
    * mock out network interceptions.
-   * @param {*} urlToIntercept
+   * @param {string} urlToIntercept
    */
-  constructor(urlToIntercept = '') {
-    this.returnBody = ''
-    this.returnHeaders = []
-    this.returnMethod = 'GET'
-    this.returnStatus = 200
-    this.urlToIntercept = urlToIntercept
+  constructor(urlToIntercept: string = '') {
+    this.returnBody = '';
+    this.returnHeaders = [];
+    this.returnMethod = 'GET';
+    this.returnStatus = 200;
+    this.urlToIntercept = urlToIntercept;
   }
 
   /**
    * Add headers that will be returned when we intercept
    * a HTTP Request
-   * @param {*} header
-   * @param {*} value
+   * @param {string} header
+   * @param {string} value
    */
-  addHeaders(header, value) {
-    this.returnHeaders.push({ name: header, value: value })
+  addHeaders(header: string, value: string): void {
+    this.returnHeaders.push({ name: header, value: value });
   }
 
-  get headers() {
-    return this.returnHeaders
+  get headers(): Header[] {
+    return this.returnHeaders;
   }
 
   /**
    * Set the STATUS value of the returned HTTP Request
-   * @param {*} value
+   * @param {number} value
    */
-  set status(value) {
+  set status(value: number) {
     // Add in check that his should be a number
-    this.returnStatus = value
+    this.returnStatus = value;
   }
 
-  get status() {
-    return this.returnStatus
+  get status(): number {
+    return this.returnStatus;
   }
 
   /**
    * Sets the value of the body of the HTTP Request that
    * will be returned.
-   * @param {*} value
+   * @param {string} value
    */
-  set body(value) {
-    this.returnBody = value
+  set body(value: string) {
+    this.returnBody = value;
   }
 
-  get body() {
-    let buff = Buffer.from(this.returnBody, 'utf-8')
-    return buff.toString('base64')
+  get body(): string {
+    let buff = Buffer.from(this.returnBody, 'utf-8');
+    return buff.toString('base64');
   }
 
   /**
    * Sets the method of the HTTP Request
-   * @param {*} value the method of the request.
+   * @param {string} value the method of the request.
    */
-  set method(value) {
-    this.returnMethod = value
+  set method(value: string) {
+    this.returnMethod = value;
   }
 
   /**
    * Returns the Method to be used in the intercept
    */
-  get method() {
-    return this.returnMethod
+  get method(): string {
+    return this.returnMethod;
   }
 }
-
-exports.HttpResponse = HttpResponse

@@ -15,30 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/**
- * @fileoverview This is an example of emulating a mobile device using the
- * ChromeDriver.
- */
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-'use strict'
+if (process.argv.length < 3) {
+  process.stderr.write(`Usage: node ${path.basename(process.argv[1])} <src file> <dst file>\n`);
+  // eslint-disable-next-line n/no-process-exit
+  process.exit(-1);
+}
 
-const { Builder, By, Key, until } = require('..')
-const { Options } = require('../chrome')
+const buffer = fs.readFileSync(process.argv[2]);
 
-;(async function () {
-  let driver
-  try {
-    driver = await new Builder()
-      .forBrowser('chrome')
-      .setChromeOptions(new Options().setMobileEmulation({ deviceName: 'Nexus 5X' }))
-      .build()
-    await driver.get('http://www.google.com/ncr')
-    await driver.findElement(By.name('q')).sendKeys('webdriver', Key.RETURN)
-    await driver.wait(until.titleIs('webdriver - Google Search'), 1000)
-  } finally {
-    ;(await driver) && driver.quit()
-  }
-})().then(
-  (_) => console.log('SUCCESS'),
-  (err) => console.error('ERROR: ' + err),
-)
+fs.writeFileSync(
+  process.argv[3],
+  `// GENERATED CODE - DO NOT EDIT
+export default ${buffer.toString('utf8').trim()};
+`,
+);
