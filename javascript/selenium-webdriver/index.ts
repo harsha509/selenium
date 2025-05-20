@@ -38,11 +38,12 @@ import * as until from './lib/until';
 import * as webdriver from './lib/webdriver';
 import * as select from './lib/select';
 import LogInspector from './bidi/logInspector';
-import BrowsingContext from './bidi/browsingContext';
-import BrowsingContextInspector from './bidi/browsingContextInspector';
+import * as browsingContext from './bidi/browsingContext';
+import * as browsingContextInspector from './bidi/browsingContextInspector';
 import ScriptManager from './bidi/scriptManager';
 import NetworkInspector from './bidi/networkInspector';
-import { version } from './package.json';
+// Define version manually since we can't import package.json directly
+const version = '4.32.0-nightly202504060755';
 import { Agent } from 'http';
 
 const Browser = capabilities.Browser;
@@ -130,50 +131,51 @@ interface ThenableWebDriverConstructor {
  */
 const THENABLE_DRIVERS = new Map<typeof webdriver.WebDriver, ThenableWebDriverConstructor>();
 
-/**
- * Creates a new WebDriver client for the provided constructor.
- * @param ctor The WebDriver constructor to use.
- * @param args The arguments to apply to the constructor.
- * @return A new WebDriver instance.
- */
-function createDriver<T extends typeof webdriver.WebDriver>(ctor: T, ...args: any[]): ThenableWebDriver {
-  let thenableWebDriverProxy = THENABLE_DRIVERS.get(ctor);
-  if (!thenableWebDriverProxy) {
-    // Create a new constructor function
-    function ProxyDriver(this: any, ...args: any[]) {
-      // Call the original constructor
-      ctor.apply(this, args);
+  /**
+   * Creates a new WebDriver client for the provided constructor.
+   * @param ctor The WebDriver constructor to use.
+   * @param args The arguments to apply to the constructor.
+   * @return A new WebDriver instance.
+   */
+  function createDriver<T extends typeof webdriver.WebDriver>(ctor: T, ...args: any[]): ThenableWebDriver {
+    let thenableWebDriverProxy = THENABLE_DRIVERS.get(ctor);
+    if (!thenableWebDriverProxy) {
+      // Create a new constructor function
+      function ProxyDriver(this: any, ...args: any[]) {
+        // Call the original constructor
+        ctor.apply(this, args);
+        
+        // Set up the thenable interface
+        const pd = this.getSession().then((session: any) => {
+          // Create a new instance with the session
+          const newArgs = [session].concat(Array.prototype.slice.call(args, 1));
+          return new (ctor as any)(...newArgs);
+        });
+        
+        // Bind the Promise methods
+        this.then = pd.then.bind(pd);
+        this.catch = pd.catch.bind(pd);
+      }
       
-      // Set up the thenable interface
-      const pd = this.getSession().then((session: any) => {
-        // Create a new instance with the session
-        const newArgs = [session].concat(Array.prototype.slice.call(args, 1));
-        return new (ctor as any)(...newArgs);
-      });
+      // Set up the prototype chain
+      ProxyDriver.prototype = Object.create(ctor.prototype);
+      ProxyDriver.prototype.constructor = ProxyDriver;
       
-      // Bind the Promise methods
-      this.then = pd.then.bind(pd);
-      this.catch = pd.catch.bind(pd);
+      // Copy static properties
+      Object.setPrototypeOf(ProxyDriver, ctor);
+      
+      // Add static createSession method that can handle different signatures
+      (ProxyDriver as any).createSession = function(...args: any[]): ThenableWebDriver {
+        // Handle different signatures by passing through all arguments
+        return new (ProxyDriver as any)(...args);
+      };
+      
+      thenableWebDriverProxy = ProxyDriver as unknown as ThenableWebDriverConstructor;
+      THENABLE_DRIVERS.set(ctor, thenableWebDriverProxy);
     }
     
-    // Set up the prototype chain
-    ProxyDriver.prototype = Object.create(ctor.prototype);
-    ProxyDriver.prototype.constructor = ProxyDriver;
-    
-    // Copy static properties
-    Object.setPrototypeOf(ProxyDriver, ctor);
-    
-    // Add static createSession method
-    (ProxyDriver as any).createSession = function(...args: any[]): ThenableWebDriver {
-      return new (ProxyDriver as any)(...args);
-    };
-    
-    thenableWebDriverProxy = ProxyDriver as unknown as ThenableWebDriverConstructor;
-    THENABLE_DRIVERS.set(ctor, thenableWebDriverProxy);
+    return thenableWebDriverProxy.createSession(...args);
   }
-  
-  return thenableWebDriverProxy.createSession(...args);
-}
 
 /**
  * Creates new {@link webdriver.WebDriver WebDriver} instances. The environment
@@ -227,7 +229,7 @@ class Builder {
   private ieService_: ie.ServiceBuilder | null;
   private safariOptions_: safari.Options | null;
   private edgeOptions_: edge.Options | null;
-  private edgeService_: remote.DriverService.Builder | null;
+  private edgeService_: edge.ServiceBuilder | null;
   private ignoreEnv_: boolean;
   private agent_: Agent | null;
 
@@ -630,15 +632,15 @@ class Builder {
 
     // Apply browser specific overrides.
     if (browser === Browser.CHROME && this.chromeOptions_) {
-      capabilities.merge(this.chromeOptions_);
+      capabilities.merge(this.chromeOptions_ as unknown as Record<string, unknown>);
     } else if (browser === Browser.FIREFOX && this.firefoxOptions_) {
-      capabilities.merge(this.firefoxOptions_);
+      capabilities.merge(this.firefoxOptions_ as unknown as Record<string, unknown>);
     } else if (browser === Browser.INTERNET_EXPLORER && this.ieOptions_) {
-      capabilities.merge(this.ieOptions_);
+      capabilities.merge(this.ieOptions_ as unknown as Record<string, unknown>);
     } else if (browser === Browser.SAFARI && this.safariOptions_) {
-      capabilities.merge(this.safariOptions_);
+      capabilities.merge(this.safariOptions_ as unknown as Record<string, unknown>);
     } else if (browser === Browser.EDGE && this.edgeOptions_) {
-      capabilities.merge(this.edgeOptions_);
+      capabilities.merge(this.edgeOptions_ as unknown as Record<string, unknown>);
     }
 
     checkOptions(capabilities, 'chromeOptions', chrome.Options, 'setChromeOptions');
@@ -810,8 +812,8 @@ export {
   promise,
   until,
   LogInspector,
-  BrowsingContext,
-  BrowsingContextInspector,
+  browsingContext,
+  browsingContextInspector,
   ScriptManager,
   NetworkInspector,
   version

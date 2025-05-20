@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-<<<<<<<< HEAD:javascript/selenium-webdriver/lib/atoms/make-atoms-module.ts
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -33,28 +32,3 @@ fs.writeFileSync(
 export default ${buffer.toString('utf8').trim()};
 `,
 );
-========
-import { LocalValue } from './protocolValue';
-
-/**
- * @deprecated
- * in favor of LocalValue methods for all argument values.
- * This extra wrapper is not required.
- */
-export class ArgumentValue {
-  private value: LocalValue | any;
-
-  constructor(value: LocalValue | any) {
-    this.value = value;
-  }
-
-  asMap(): Map<string, any> {
-    if (this.value instanceof LocalValue) {
-      return this.value.asMap();
-    } else {
-      // ReferenceValue
-      return this.value.asMap();
-    }
-  }
-}
->>>>>>>> 5b1dca5e4d (migrate to ts):javascript/selenium-webdriver/bidi/argumentValue.ts

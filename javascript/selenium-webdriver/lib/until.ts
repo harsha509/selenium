@@ -69,7 +69,7 @@ export function ableToSwitchToFrame(
       });
     };
   }
-  return new Condition<boolean>('to be able to switch to frame', conditionFn);
+  return new Condition<boolean | null>('to be able to switch to frame', conditionFn);
 }
 
 /**

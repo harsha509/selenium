@@ -8,8 +8,21 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "strict": false,
-    "declaration": false,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "noEmitOnError": false,
+    "allowSyntheticDefaultImports": true,
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "strictNullChecks": false,
+    "strictFunctionTypes": false,
+    "strictPropertyInitialization": false,
+    "typeRoots": ["./node_modules/@types"],
+    "emitDeclarationOnly": false,
+    "checkJs": false,
+    "skipDefaultLibCheck": true,
+    "ignoreDeprecations": "5.0"
   },
   "include": [
     "*.ts",

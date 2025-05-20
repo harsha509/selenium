@@ -6,7 +6,7 @@ import * as input from './input'
 import * as logging from './logging'
 import promise from './promise'
 import * as Symbols from './symbols'
-import cdp from '../devtools/CDPConnection'
+import * as cdp from '../devtools/CDPConnection'
 import WebSocket from 'ws'
 import * as http from '../http/index'
 import * as fs from 'node:fs'
@@ -178,7 +178,7 @@ interface IWebDriver {
   executeScript<T>(script: string | Function | PinnedScript, ...args: any[]): Promise<T>;
   executeAsyncScript<T>(script: string | Function | PinnedScript, ...args: any[]): Promise<T>;
   wait<T>(
-    condition: Promise<T> | Condition<T> | ((driver: IWebDriver) => T),
+    condition: Promise<T> | Condition<T> | ((driver: IWebDriver) => T | Promise<T>),
     timeout?: number,
     message?: string | (() => string),
     pollTimeout?: number
@@ -206,8 +206,8 @@ interface IWebDriver {
 
 class Condition<T> {
   description_: string;
-  fn: (driver: IWebDriver) => T;
-  constructor(message: string, fn: (driver: IWebDriver) => T) {
+  fn: (driver: IWebDriver) => T | Promise<T>;
+  constructor(message: string, fn: (driver: IWebDriver) => T | Promise<T>) {
     this.description_ = "Waiting " + message;
     this.fn = fn;
   }
@@ -251,24 +251,36 @@ class WebDriver implements IWebDriver {
   }
 
   static createSession(
-    executor: command.Executor,
-    capabilities: Capabilities,
-    onQuit?: () => any
+    executorOrCaps: command.Executor | Capabilities | any,
+    capabilitiesOrService?: Capabilities | any,
+    onQuitOrVendorPrefix?: (() => any) | string,
+    vendorCapabilityKey?: string
   ): WebDriver {
-    let cmd = new command.Command(command.Name.NEW_SESSION);
-    cmd.setParameter("capabilities", {
-      firstMatch: [{}],
-      alwaysMatch: filterNonW3CCaps(capabilities),
-    });
-    let session = executeCommand(executor, cmd);
-    if (typeof onQuit === "function") {
-      session = session.catch((err: any) => {
-        return Promise.resolve(onQuit.call(undefined)).then(() => {
-          throw err;
-        });
+    // Handle the case where executorOrCaps is an Executor
+    if (executorOrCaps && typeof executorOrCaps.execute === 'function') {
+      const executor = executorOrCaps;
+      const capabilities = capabilitiesOrService as Capabilities;
+      const onQuit = typeof onQuitOrVendorPrefix === 'function' ? onQuitOrVendorPrefix : undefined;
+
+      let cmd = new command.Command(command.Name.NEW_SESSION);
+      cmd.setParameter("capabilities", {
+        firstMatch: [{}],
+        alwaysMatch: filterNonW3CCaps(capabilities),
       });
+      let session = executeCommand(executor, cmd);
+      if (typeof onQuit === "function") {
+        session = session.catch((err: any) => {
+          return Promise.resolve(onQuit.call(undefined)).then(() => {
+            throw err;
+          });
+        });
+      }
+      return new WebDriver(session, executor, onQuit);
     }
-    return new WebDriver(session, executor, onQuit);
+
+    // This is a base implementation that should be overridden by subclasses
+    // to handle other parameter combinations
+    throw new Error("This method signature is not supported in the base WebDriver class");
   }
 
   async execute(cmd: command.Command): Promise<any> {
@@ -357,7 +369,7 @@ class WebDriver implements IWebDriver {
   }
 
   wait<T>(
-    condition: Promise<T> | Condition<T> | ((driver: IWebDriver) => T),
+    condition: Promise<T> | Condition<T> | ((driver: IWebDriver) => T | Promise<T>),
     timeout: number = 0,
     message?: string | (() => string),
     pollTimeout: number = 200
@@ -407,10 +419,10 @@ class WebDriver implements IWebDriver {
         );
       });
     }
-    let fn: (driver: IWebDriver) => T = condition as (driver: IWebDriver) => T;
+    let fn: (driver: IWebDriver) => T | Promise<T> = condition as (driver: IWebDriver) => T | Promise<T>;
     if (condition instanceof Condition) {
       message = message || condition.description();
-      fn = condition.fn;
+      fn = condition.fn as (driver: IWebDriver) => T | Promise<T>;
     }
     if (typeof fn !== "function") {
       throw TypeError(
@@ -421,7 +433,12 @@ class WebDriver implements IWebDriver {
     function evaluateCondition(): Promise<T> {
       return new Promise((resolve, reject) => {
         try {
-          resolve(fn(driver));
+          const result = fn(driver);
+          if (result instanceof Promise) {
+            result.then(resolve, reject);
+          } else {
+            resolve(result as T);
+          }
         } catch (ex) {
           reject(ex);
         }
@@ -712,7 +729,7 @@ class WebDriver implements IWebDriver {
     return new Promise((resolve, reject) => {
       try {
         this._cdpWsConnection = new WebSocket(this._wsUrl.replace("localhost", "127.0.0.1"));
-        this._cdpConnection = new cdp.CdpConnection(this._cdpWsConnection);
+        this._cdpConnection = new cdp.CDPConnection(this._cdpWsConnection);
       } catch (err) {
         reject(err);
         return;

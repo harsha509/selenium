@@ -24,17 +24,18 @@ const RealmType = {
   AUDIO_WORKLET: 'audio-worklet',
   DEDICATED_WORKER: 'dedicated-worker',
   PAINT_WORKLET: 'paint-worklet',
-  SERVICE_WORKED: 'service-worker',
-  SHARED_WORKED: 'shared-worker',
+  SERVICE_WORKER: 'service-worker',
+  SHARED_WORKER: 'shared-worker',
   WINDOW: 'window',
   WORKER: 'worker',
   WORKLET: 'worklet',
 
   findByName(name: string): string | null {
     return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
+      Object.entries(this)
+        .filter(([key]) => key !== 'findByName')
+        .map(([, value]) => value as string)
+        .find((type) => name.toLowerCase() === type.toLowerCase()) || null
     )
   },
 } as const;

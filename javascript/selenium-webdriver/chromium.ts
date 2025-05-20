@@ -24,6 +24,7 @@
 import * as http from './http';
 import * as io from './io';
 import { Capabilities, Capability } from './lib/capabilities';
+import * as httpLib from './lib/http';
 import * as command from './lib/command';
 import * as error from './lib/error';
 import * as Symbols from './lib/symbols';
@@ -53,10 +54,10 @@ export enum Command {
 /**
  * Creates a command executor with support for Chromium's custom commands.
  */
-function createExecutor(url: Promise<string>, vendorPrefix: string): http.Executor {
+function createExecutor(url: Promise<string>, vendorPrefix: string): httpLib.Executor {
   const agent = new http.Agent({ keepAlive: true });
   const client = url.then((url) => new http.HttpClient(url, agent));
-  const executor = new http.Executor(client);
+  const executor = new httpLib.Executor(client);
   configureExecutor(executor, vendorPrefix);
   return executor;
 }
@@ -64,7 +65,7 @@ function createExecutor(url: Promise<string>, vendorPrefix: string): http.Execut
 /**
  * Configures the given executor with Chromium-specific commands.
  */
-function configureExecutor(executor: http.Executor, vendorPrefix: string): void {
+function configureExecutor(executor: httpLib.Executor, vendorPrefix: string): void {
   executor.defineCommand(Command.LAUNCH_APP, 'POST', '/session/:sessionId/chromium/launch_app');
   executor.defineCommand(Command.GET_NETWORK_CONDITIONS, 'GET', '/session/:sessionId/chromium/network_conditions');
   executor.defineCommand(Command.SET_NETWORK_CONDITIONS, 'POST', '/session/:sessionId/chromium/network_conditions');
@@ -219,7 +220,7 @@ export class ServiceBuilder {
     if (this.loopback_) {
       args.push('--bind-address=localhost');
     }
-    return new remote.DriverService(this.exe_ || '', args);
+    return new remote.DriverService(this.exe_ || '', {args, port: 0});
   }
 }
 
@@ -249,7 +250,7 @@ class Extensions {
   [Symbols.serialize](): Promise<string>[] {
     return this.extensions.map(function(extension) {
       if (Buffer.isBuffer(extension)) {
-        return extension.toString('base64');
+        return Promise.resolve(extension.toString('base64'));
       }
       return io.read(extension as string).then((buffer) => buffer.toString('base64'));
     });
@@ -487,30 +488,48 @@ export class Driver extends webdriver.WebDriver {
    * Creates a new session with the WebDriver server.
    */
   static createSession(
-    caps?: Capabilities | Options,
-    opt_serviceExecutor?: remote.DriverService | http.Executor,
-    vendorPrefix: string = '',
+    executorOrCaps: httpLib.Executor | Capabilities | Options,
+    capabilitiesOrService?: Capabilities | remote.DriverService | httpLib.Executor,
+    onQuitOrVendorPrefix?: (() => any) | string,
     vendorCapabilityKey: string = ''
-  ): Driver {
-    let executor: http.Executor;
+  ): Driver | webdriver.WebDriver {
+    // Handle the WebDriver.createSession signature
+    if (executorOrCaps instanceof httpLib.Executor && 
+        capabilitiesOrService instanceof Capabilities) {
+      return webdriver.WebDriver.createSession(
+        executorOrCaps, 
+        capabilitiesOrService, 
+        typeof onQuitOrVendorPrefix === 'function' ? onQuitOrVendorPrefix : undefined
+      );
+    }
+
+    // Handle the Driver.createSession signature
+    let caps = executorOrCaps as (Capabilities | Options);
+    const opt_serviceExecutor = capabilitiesOrService as (remote.DriverService | httpLib.Executor | undefined);
+    const vendorPrefix = typeof onQuitOrVendorPrefix === 'string' ? onQuitOrVendorPrefix : '';
+    
+    let executor: httpLib.Executor;
     let onQuit: (() => void) | undefined;
     
-    if (opt_serviceExecutor instanceof http.Executor) {
+    if (opt_serviceExecutor instanceof httpLib.Executor) {
       executor = opt_serviceExecutor;
       configureExecutor(executor, vendorPrefix);
     } else {
       let service = opt_serviceExecutor || (this as any).getDefaultService();
       if (!service.getExecutable()) {
-        const { driverPath, browserPath } = getBinaryPaths(caps);
+        const { driverPath, browserPath } = getBinaryPaths(caps as any);
         service.setExecutable(driverPath);
-        if (browserPath) {
-          const vendorOptions = caps?.get?.(vendorCapabilityKey) || {};
-          (vendorOptions as any)['binary'] = browserPath;
+        if (browserPath && caps) {
+          let vendorOptions: any = {};
           if (caps instanceof Capabilities) {
+            vendorOptions = caps.get(vendorCapabilityKey) || {};
+            vendorOptions['binary'] = browserPath;
             caps.set(vendorCapabilityKey, vendorOptions);
             caps.delete(Capability.BROWSER_VERSION);
           } else if (caps instanceof Options) {
             const newCaps = caps.toCapabilities();
+            vendorOptions = newCaps.get(vendorCapabilityKey) || {};
+            vendorOptions['binary'] = browserPath;
             newCaps.set(vendorCapabilityKey, vendorOptions);
             newCaps.delete(Capability.BROWSER_VERSION);
             caps = newCaps;
@@ -523,7 +542,11 @@ export class Driver extends webdriver.WebDriver {
 
     // W3C spec requires noProxy value to be an array of strings, but Chromium
     // expects a single host as a string.
-    let proxy = caps instanceof Capabilities ? caps.get(Capability.PROXY) : null;
+    let proxy = null;
+    if (caps instanceof Capabilities) {
+      proxy = caps.get(Capability.PROXY);
+    }
+    
     if (proxy && typeof proxy === 'object' && Array.isArray((proxy as any).noProxy)) {
       (proxy as any).noProxy = (proxy as any).noProxy[0];
       if (!(proxy as any).noProxy) {
@@ -532,7 +555,7 @@ export class Driver extends webdriver.WebDriver {
     }
 
     const actualCaps = caps instanceof Options ? caps.toCapabilities() : (caps || new Capabilities());
-    return webdriver.WebDriver.createSession(executor, actualCaps, onQuit) as Driver;
+    return new Driver(executor as any, actualCaps as any, onQuit);
   }
 
   /**

@@ -47,7 +47,7 @@ class Permission {
    */
   async setPermission(
     permissionDescriptor: Record<string, any>,
-    state: string,
+    state: "granted" | "denied" | "prompt",
     origin: string,
     userContext: string | null = null
   ): Promise<void> {
@@ -55,18 +55,25 @@ class Permission {
       throw new Error(`Invalid permission state. Must be one of: ${Object.values(PermissionState).join(', ')}`);
     }
 
-    const command = {
-      method: 'permissions.setPermission',
-      params: {
-        descriptor: permissionDescriptor,
-        state: state,
-        origin: origin,
-      },
+    const params: {
+      descriptor: Record<string, any>;
+      state: "granted" | "denied" | "prompt";
+      origin: string;
+      userContext?: string;
+    } = {
+      descriptor: permissionDescriptor,
+      state: state,
+      origin: origin,
     };
 
     if (userContext) {
-      command.params.userContext = userContext;
+      params.userContext = userContext;
     }
+
+    const command = {
+      method: 'permissions.setPermission',
+      params
+    };
 
     await this.bidi.send(command);
   }

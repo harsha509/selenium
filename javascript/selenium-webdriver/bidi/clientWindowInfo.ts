@@ -61,8 +61,13 @@ export class ClientWindowInfo {
 
   static fromJson(json: Record<string, any>): ClientWindowInfo {
     return new ClientWindowInfo({
-      ...json,
-      state: json.state.toLowerCase(),
+      clientWindow: json.clientWindow || '',
+      state: json.state ? json.state.toLowerCase() : '',
+      width: json.width || 0,
+      height: json.height || 0,
+      x: json.x || 0,
+      y: json.y || 0,
+      active: json.active || false
     });
   }
 }

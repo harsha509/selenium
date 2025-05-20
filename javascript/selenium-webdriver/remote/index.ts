@@ -33,7 +33,7 @@ import { getJavaPath, formatSpawnArgs } from './util';
 /**
  * Standard IO configuration for a child process.
  */
-type StdIoOptions = string | Array<string | number | Stream | null | undefined>;
+type StdIoOptions = 'pipe' | 'ignore' | 'inherit' | Array<'pipe' | 'ipc' | 'ignore' | 'inherit' | Stream | number | null | undefined>;
 
 /**
  * Command line flag that can be a string or a promise that resolves to a string.
@@ -274,10 +274,8 @@ export class DriverService {
    * child process.
    */
   static Builder = class {
-    /** @private */
-    private exe_: string;
-    /** @private */
-    private options_: ServiceOptions;
+    #exe: string;
+    #options: ServiceOptions;
 
     /**
      * @param exe Path to the executable to use. This executable must
@@ -285,8 +283,8 @@ export class DriverService {
      * @throws {Error} If the provided executable path does not exist.
      */
     constructor(exe?: string) {
-      this.exe_ = exe || '';
-      this.options_ = {
+      this.#exe = exe || '';
+      this.#options = {
         args: [],
         port: 0,
         env: null,
@@ -301,11 +299,11 @@ export class DriverService {
      * @return A self reference.
      */
     addArguments(...args: CommandLineFlag[]): this {
-      if (Array.isArray(this.options_.args)) {
-        this.options_.args = this.options_.args.concat(args);
+      if (Array.isArray(this.#options.args)) {
+        this.#options.args = this.#options.args.concat(args);
       } else {
         // If it's a promise, we need to wait for it to resolve before concatenating
-        this.options_.args = Promise.resolve(this.options_.args).then(resolvedArgs => 
+        this.#options.args = Promise.resolve(this.#options.args).then(resolvedArgs => 
           resolvedArgs.concat(args)
         );
       }
@@ -320,7 +318,7 @@ export class DriverService {
      * @return A self reference.
      */
     setHostname(hostname: string): this {
-      this.options_.hostname = hostname;
+      this.#options.hostname = hostname;
       return this;
     }
 
@@ -332,7 +330,7 @@ export class DriverService {
      * @return A self reference.
      */
     setLoopback(loopback: boolean): this {
-      this.options_.loopback = loopback;
+      this.#options.loopback = loopback;
       return this;
     }
 
@@ -344,7 +342,7 @@ export class DriverService {
      * @return A self reference.
      */
     setPath(basePath: string | null): this {
-      this.options_.path = basePath;
+      this.#options.path = basePath;
       return this;
     }
 
@@ -359,7 +357,7 @@ export class DriverService {
       if (port < 0) {
         throw Error(`port must be >= 0: ${port}`);
       }
-      this.options_.port = port;
+      this.#options.port = port;
       return this;
     }
 
@@ -378,7 +376,7 @@ export class DriverService {
         env.forEach((value, key) => (tmp[key] = value));
         env = tmp;
       }
-      this.options_.env = env;
+      this.#options.env = env;
       return this;
     }
 
@@ -391,7 +389,7 @@ export class DriverService {
      * @see https://nodejs.org/dist/latest-v4.x/docs/api/child_process.html#child_process_options_stdio
      */
     setStdio(config: StdIoOptions): this {
-      this.options_.stdio = config;
+      this.#options.stdio = config;
       return this;
     }
 
@@ -401,13 +399,13 @@ export class DriverService {
      * @return A new driver service.
      */
     build(): DriverService {
-      let port = this.options_.port || portprober.findFreePort();
+      let port = this.#options.port || portprober.findFreePort();
       let args = Promise.resolve(port).then((port) => {
-        return (this.options_.args as CommandLineFlag[]).concat('--port=' + port);
+        return (this.#options.args as CommandLineFlag[]).concat('--port=' + port);
       });
 
-      let options = Object.assign({}, this.options_, { args, port }) as ServiceOptions;
-      return new DriverService(this.exe_, options);
+      let options = Object.assign({}, this.#options, { args, port }) as ServiceOptions;
+      return new DriverService(this.#exe, options);
     }
   };
 }

@@ -52,6 +52,7 @@ import { Browser } from './lib/capabilities';
 import * as chromium from './chromium';
 import * as remote from './remote';
 import { Capabilities } from './lib/capabilities';
+import { Executor } from './lib/http';
 
 const EDGE_CAPABILITY_KEY = 'ms:edgeOptions';
 
@@ -97,7 +98,7 @@ export class Options extends chromium.Options {
    * @return A self reference.
    */
   setEdgeChromiumBinaryPath(path: string): Options {
-    return this.setBinaryPath(path);
+    return this.setBinaryPath(path) as Options;
   }
 
   /**
@@ -110,7 +111,9 @@ export class Options extends chromium.Options {
    */
   useWebView(enable: boolean): Options {
     const browserName = enable ? 'webview2' : Browser.EDGE;
-    return this.setBrowserName(browserName);
+    const caps = this.toCapabilities();
+    caps.setBrowserName(browserName);
+    return new Options(caps);
   }
 }
 
@@ -127,16 +130,26 @@ export class Driver extends chromium.Driver {
    * @return A new driver instance.
    */
   static createSession(
-    opt_config?: Capabilities | Options,
-    opt_serviceExecutor?: remote.DriverService
+    executorOrCaps?: Capabilities | Options | Executor,
+    capabilitiesOrService?: Capabilities | remote.DriverService | Executor,
+    onQuitOrVendorPrefix?: (() => any) | string,
+    vendorCapabilityKey: string = EDGE_CAPABILITY_KEY
   ): Driver {
-    const caps = opt_config || new Options();
-    return super.createSession(
-      caps,
-      opt_serviceExecutor,
-      'ms',
-      EDGE_CAPABILITY_KEY
-    ) as Driver;
+    if (executorOrCaps instanceof Executor) {
+      return super.createSession(
+        executorOrCaps,
+        capabilitiesOrService as Capabilities,
+        onQuitOrVendorPrefix as (() => any)
+      ) as Driver;
+    } else {
+      const caps = executorOrCaps || new Options();
+      return super.createSession(
+        caps,
+        capabilitiesOrService,
+        'ms',
+        EDGE_CAPABILITY_KEY
+      ) as Driver;
+    }
   }
 
   /**

@@ -31,9 +31,10 @@ const PrimitiveType = {
 
   findByName(name: string): string | null {
     return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
+      Object.entries(this)
+        .filter(([key]) => key !== 'findByName')
+        .map(([, value]) => value as string)
+        .find((type) => name.toLowerCase() === type.toLowerCase()) || null
     )
   },
 } as const;
@@ -56,9 +57,10 @@ const NonPrimitiveType = {
 
   findByName(name: string): string | null {
     return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
+      Object.entries(this)
+        .filter(([key]) => key !== 'findByName')
+        .map(([, value]) => value as string)
+        .find((type) => name.toLowerCase() === type.toLowerCase()) || null
     )
   },
 } as const;
@@ -89,9 +91,10 @@ const RemoteType = {
 
   findByName(name: string): string | null {
     return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
+      Object.entries(this)
+        .filter(([key]) => key !== 'findByName')
+        .map(([, value]) => value as string)
+        .find((type) => name.toLowerCase() === type.toLowerCase()) || null
     )
   },
 } as const;

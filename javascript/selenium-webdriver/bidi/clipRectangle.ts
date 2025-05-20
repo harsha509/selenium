@@ -38,7 +38,9 @@ class ClipRectangle {
     return this.clipType
   }
 
-  asMap(): Map<string, any> {}
+  asMap(): Map<string, any> {
+    return new Map<string, any>();
+  }
 }
 
 /**

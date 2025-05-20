@@ -18,7 +18,8 @@
 import { InvalidArgumentError, NoSuchFrameError } from '../lib/error';
 import { BrowsingContextInfo } from './browsingContextTypes';
 import { SerializationOptions, ReferenceValue, RemoteValue } from './protocolValue';
-import { WebElement } from '../lib/webdriver';
+import { WebDriver, WebElement } from '../lib/webdriver';
+import BIDI from '../bidi';
 import { CaptureScreenshotParameters } from './captureScreenshotParameters';
 import { CreateContextParameters } from './createContextParameters';
 
@@ -100,11 +101,11 @@ export class Locator {
  * Hence, this class represent browsing context lifecycle.
  */
 class BrowsingContext {
-  private _driver: any;
+  private _driver: WebDriver;
   private _id: string;
-  private bidi: any;
+  private bidi: BIDI;
 
-  constructor(driver: any) {
+  constructor(driver: WebDriver) {
     this._driver = driver;
   }
 
@@ -147,7 +148,7 @@ class BrowsingContext {
    * Creates a browsing context for the given type with the given parameters
    */
   async create(type: string, createParameters: CreateContextParameters | undefined = undefined): Promise<any> {
-    if (createParameters !== undefined && (!createParameters) instanceof CreateContextParameters) {
+    if (createParameters !== undefined && !(createParameters instanceof CreateContextParameters)) {
       throw Error(`Pass in the instance of CreateContextParameters. Received: ${createParameters}`);
     }
 
@@ -293,8 +294,8 @@ async printPage(options: Record<string, any> = {}): Promise<PrintResult> {
 async captureScreenshot(captureScreenshotParameters: CaptureScreenshotParameters | undefined = undefined): Promise<string> {
   if (
     captureScreenshotParameters !== undefined &&
-                                                                                                           !(captureScreenshotParameters instanceof CaptureScreenshotParameters)
-) {
+    !(captureScreenshotParameters instanceof CaptureScreenshotParameters)
+  ) {
   throw new InvalidArgumentError(
     `Pass in a CaptureScreenshotParameters object. Received: ${captureScreenshotParameters}`,
   );
@@ -642,9 +643,9 @@ class NavigateResult {
  * Represents a print result.
  */
 class PrintResult {
-  private _data: any;
+  private _data: string;
 
-  constructor(data: any) {
+  constructor(data: string) {
     this._data = data;
   }
 

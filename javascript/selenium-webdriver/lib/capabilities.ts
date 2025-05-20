@@ -1,6 +1,6 @@
 'use strict';
 
-import { Symbols } from './symbols';
+import * as Symbols from './symbols';
 
 export enum Browser {
   CHROME = 'chrome',

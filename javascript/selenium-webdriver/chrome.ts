@@ -151,16 +151,26 @@ export class Driver extends chromium.Driver {
    * @return A new driver instance.
    */
   static createSession(
-    opt_config?: Capabilities | Options,
-    opt_serviceExecutor?: remote.DriverService | Executor
+    executorOrCaps?: Capabilities | Options | Executor,
+    capabilitiesOrService?: Capabilities | remote.DriverService | Executor,
+    onQuitOrVendorPrefix?: (() => any) | string,
+    vendorCapabilityKey: string = CHROME_CAPABILITY_KEY
   ): Driver {
-    const caps = opt_config || new Options();
-    return super.createSession(
-      caps,
-      opt_serviceExecutor,
-      'goog',
-      CHROME_CAPABILITY_KEY
-    ) as Driver;
+    if (executorOrCaps instanceof Executor) {
+      return super.createSession(
+        executorOrCaps,
+        capabilitiesOrService as Capabilities,
+        onQuitOrVendorPrefix as (() => any)
+      ) as Driver;
+    } else {
+      const caps = executorOrCaps || new Options();
+      return super.createSession(
+        caps,
+        capabilitiesOrService,
+        'goog',
+        CHROME_CAPABILITY_KEY
+      ) as Driver;
+    }
   }
 
   /**

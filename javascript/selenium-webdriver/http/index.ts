@@ -243,12 +243,22 @@ function sendRequest(
         // eslint-disable-next-line n/no-deprecated-api
         location = url.parse(response.headers['location'] || '');
       } catch (ex) {
+        // Convert IncomingHttpHeaders to Record<string, string>
+        const headers: Record<string, string> = {};
+        for (const [key, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) {
+            headers[key] = value.join(', ');
+          } else if (value !== undefined) {
+            headers[key] = value;
+          }
+        }
+        
         onError(
           Error(
             'Failed to parse "Location" header for server redirect: ' +
               (ex as Error).message +
               '\nResponse was: \n' +
-              new httpLib.Response(response.statusCode || 0, response.headers, ''),
+              new httpLib.Response(response.statusCode || 0, headers, ''),
           ),
         );
         return;
@@ -288,9 +298,19 @@ function sendRequest(
     const body: Buffer[] = [];
     response.on('data', body.push.bind(body));
     response.on('end', function() {
+      // Convert IncomingHttpHeaders to Record<string, string>
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(response.headers)) {
+        if (Array.isArray(value)) {
+          headers[key] = value.join(', ');
+        } else if (value !== undefined) {
+          headers[key] = value;
+        }
+      }
+      
       const resp = new httpLib.Response(
         response.statusCode || 0,
-        response.headers,
+        headers,
         Buffer.concat(body).toString('utf8').replace(/\0/g, ''),
       );
       onOk(resp);

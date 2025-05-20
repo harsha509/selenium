@@ -48,7 +48,7 @@ const NetworkEvent = {
 const CacheBehavior = Object.freeze({
   DEFAULT: 'default',
   BYPASS: 'bypass',
-}) as const;
+});
 
 type CacheBehaviorType = typeof CacheBehavior[keyof typeof CacheBehavior];
 

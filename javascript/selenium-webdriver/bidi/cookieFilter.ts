@@ -108,13 +108,14 @@ class CookieFilter {
   /**
    * Sets the SameSite attribute for the cookie.
    *
-   * @param {SameSite} sameSite - The SameSite value to be set for the cookie.
+   * @param {string} sameSite - The SameSite value to be set for the cookie.
    * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
-   * @throws {Error} - If the provided sameSite value is not an instance of SameSite.
+   * @throws {Error} - If the provided sameSite value is not a valid SameSite value.
    */
-  sameSite(sameSite: SameSite): CookieFilter {
-    if (!(sameSite instanceof SameSite)) {
-      throw new Error(`Params must be a value in SameSite. Received:'${sameSite}'`)
+  sameSite(sameSite: string): CookieFilter {
+    const validValues = [SameSite.STRICT, SameSite.LAX, SameSite.NONE];
+    if (!validValues.includes(sameSite)) {
+      throw new Error(`Params must be a value in SameSite (strict, lax, none). Received:'${sameSite}'`)
     }
     this.#map.set('sameSite', sameSite)
     return this

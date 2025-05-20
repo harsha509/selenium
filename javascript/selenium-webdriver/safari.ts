@@ -26,6 +26,7 @@ import * as remote from './remote';
 import * as webdriver from './lib/webdriver';
 import { Browser, Capabilities } from './lib/capabilities';
 import { getBinaryPaths } from './common/driverFinder';
+import { Executor } from './lib/http';
 
 /**
  * Creates {@link remote.DriverService} instances that manage
@@ -128,20 +129,34 @@ export class Driver extends webdriver.WebDriver {
    * @param options The configuration options.
    * @return A new driver instance.
    */
-  static createSession(options?: Options | Capabilities): Driver {
-    const caps = options || new Options();
+  static createSession(
+    executorOrCaps?: Options | Capabilities | Executor,
+    capabilitiesOrService?: Capabilities | remote.DriverService | Executor,
+    onQuitOrVendorPrefix?: (() => any) | string
+  ): Driver {
+    // Handle the WebDriver.createSession signature
+    if (executorOrCaps instanceof Executor && 
+        capabilitiesOrService instanceof Capabilities) {
+      return super.createSession(
+        executorOrCaps, 
+        capabilitiesOrService, 
+        typeof onQuitOrVendorPrefix === 'function' ? onQuitOrVendorPrefix : undefined
+      ) as Driver;
+    }
+
+    const caps = executorOrCaps || new Options();
 
     let exe: string | undefined;
-    if (useTechnologyPreview(caps.get(OPTIONS_CAPABILITY_KEY) as Record<string, any>)) {
+    if (useTechnologyPreview(caps instanceof Capabilities ? caps.get(OPTIONS_CAPABILITY_KEY) as Record<string, any> : undefined)) {
       exe = SAFARIDRIVER_TECHNOLOGY_PREVIEW_EXE;
     }
 
     const service = new ServiceBuilder(exe).build();
     if (!service.getExecutable()) {
-      service.setExecutable(getBinaryPaths(caps).driverPath);
+      service.setExecutable(getBinaryPaths(caps as Capabilities).driverPath);
     }
     const executor = new http.Executor(service.start().then((url) => new http.HttpClient(url)));
 
-    return super.createSession(executor, caps, () => service.kill()) as Driver;
+    return super.createSession(executor, caps as Capabilities, () => service.kill()) as Driver;
   }
 }

@@ -28,39 +28,64 @@ import * as cmd from './command';
 import * as error from './error';
 import * as logging from './logging';
 import * as promise from './promise';
-import { Session } from './session';
+import Session from './session';
 import * as webElement from './webelement';
 import { isObject } from './util';
 
 const log_ = logging.getLogger(`${logging.Type.DRIVER}.http`);
 
-const getAttribute = requireAtom('get-attribute.js', '//javascript/selenium-webdriver/lib/atoms:get-attribute.js');
-const isDisplayed = requireAtom('is-displayed.js', '//javascript/selenium-webdriver/lib/atoms:is-displayed.js');
-const findElements = requireAtom('find-elements.js', '//javascript/selenium-webdriver/lib/atoms:find-elements.js');
+// Define dummy functions for atoms to avoid type errors
+function dummyGetAttribute() {
+  throw new Error('Atom not loaded: getAttribute');
+}
 
-/**
- * @param {string} module
- * @param {string} bazelTarget
- * @return {!Function}
- */
-function requireAtom(module: string, bazelTarget: string): Function {
+function dummyIsDisplayed() {
+  throw new Error('Atom not loaded: isDisplayed');
+}
+
+function dummyFindElements() {
+  throw new Error('Atom not loaded: findElements');
+}
+
+// Define the atoms
+let getAttribute: Function = dummyGetAttribute;
+let isDisplayed: Function = dummyIsDisplayed;
+let findElements: Function = dummyFindElements;
+
+try {
+  getAttribute = require('./atoms/get-attribute.js');
+} catch (ex) {
   try {
-    return require('./atoms/' + module);
-  } catch (ex) {
-    try {
-      const file = bazelTarget.slice(2).replace(':', '/');
-      log_.log(`../../../bazel-bin/${file}`);
-      return require(path.resolve(`../../../bazel-bin/${file}`));
-    } catch (ex2) {
-      log_.severe(ex2);
-      throw Error(
-        `Failed to import atoms module ${module}. If running in dev mode, you` +
-        ` need to run \`bazel build ${bazelTarget}\` from the project` +
-        `root: ${ex}`,
-      );
-    }
+    const file = '//javascript/selenium-webdriver/lib/atoms:get-attribute.js'.slice(2).replace(':', '/');
+    getAttribute = require(path.resolve(`../../../bazel-bin/${file}`));
+  } catch (ex2) {
+    log_.severe(ex2);
   }
 }
+
+try {
+  isDisplayed = require('./atoms/is-displayed.js');
+} catch (ex) {
+  try {
+    const file = '//javascript/selenium-webdriver/lib/atoms:is-displayed.js'.slice(2).replace(':', '/');
+    isDisplayed = require(path.resolve(`../../../bazel-bin/${file}`));
+  } catch (ex2) {
+    log_.severe(ex2);
+  }
+}
+
+try {
+  findElements = require('./atoms/find-elements.js');
+} catch (ex) {
+  try {
+    const file = '//javascript/selenium-webdriver/lib/atoms:find-elements.js'.slice(2).replace(':', '/');
+    findElements = require(path.resolve(`../../../bazel-bin/${file}`));
+  } catch (ex2) {
+    log_.severe(ex2);
+  }
+}
+
+// The requireAtom function has been replaced with direct imports
 
 /**
  * Converts a headers map to a HTTP header block string.
@@ -175,6 +200,11 @@ interface CommandSpec {
 
 /** CommandTransformer type definition */
 type CommandTransformer = (command: cmd.Command) => cmd.Command;
+
+// Type guard to check if a value is a CommandSpec
+function isCommandSpec(value: CommandSpec | CommandTransformer): value is CommandSpec {
+  return typeof (value as CommandSpec).method === 'string' && typeof (value as CommandSpec).path === 'string';
+}
 
 class InternalTypeError extends TypeError {}
 
@@ -375,13 +405,13 @@ function buildRequest(customCommands: Map<string, CommandSpec> | null, command: 
     return toHttpRequest(spec);
   }
 
-  spec = W3C_COMMAND_MAP.get(command.getName());
-  if (typeof spec === 'function') {
+  const specOrTransformer = W3C_COMMAND_MAP.get(command.getName());
+  if (typeof specOrTransformer === 'function') {
     log_.finest(() => `Transforming command for W3C: ${command.getName()}`);
-    let newCommand = spec(command);
+    let newCommand = specOrTransformer(command);
     return buildRequest(customCommands, newCommand);
-  } else if (spec) {
-    return toHttpRequest(spec);
+  } else if (specOrTransformer && isCommandSpec(specOrTransformer)) {
+    return toHttpRequest(specOrTransformer);
   }
   throw new error.UnknownCommandError('Unrecognized command: ' + command.getName());
 
@@ -458,12 +488,16 @@ class Executor implements cmd.Executor {
     this.log_.finer(() => `>>> ${request.method} ${request.path}`);
 
     let client = CLIENTS.get(this);
-    if (promise.isPromise(client)) {
-      client = await client;
-      CLIENTS.set(this, client);
-    }
+  if (client && typeof (client as Promise<Client>).then === 'function') {
+    client = await client;
+    CLIENTS.set(this, client);
+  }
 
-    let response = await client!.send(request);
+  if (!client) {
+    throw new Error('Client is not defined');
+  }
+
+  let response = await (client as Client).send(request);
     this.log_.finer(() => `>>>\n${request}\n<<<\n${response}`);
 
     let httpResponse = response;

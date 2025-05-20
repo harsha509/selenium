@@ -1,10 +1,26 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_run_binary")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("//common:defs.bzl", "copy_file")
+
+# Compile TypeScript file
+ts_project(
+    name = "make_atoms_module_ts",
+    srcs = ["make-atoms-module.ts"],
+    declaration = False,
+    out_dir = ".",
+    root_dir = ".",
+    source_map = True,
+    tsconfig = "//javascript/selenium-webdriver:tsconfig",
+    validate = False,
+    deps = [
+        "//javascript/selenium-webdriver:node_modules/@types/node",
+    ],
+)
 
 js_binary(
     name = "make_atoms_module",
-    data = ["make-atoms-module.js"],
-    entry_point = ":make-atoms-module.js",
+    data = [":make_atoms_module_ts"],
+    entry_point = "make-atoms-module.js",
 )
 
 js_run_binary(

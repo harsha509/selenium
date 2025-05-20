@@ -41,7 +41,7 @@ class BaseLogEntry {
    */
   constructor(level: string, source: string, text: string, timeStamp: number, stackTrace: string | null) {
     this._level = level
-    this._source = new Source(source)
+    this._source = new Source({ realm: source })
     this._text = text
     this._timeStamp = timeStamp
     this._stackTrace = stackTrace

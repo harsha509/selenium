@@ -22,7 +22,7 @@ export type ByHash =
   | { id: string }
   | { js: string }
   | { linkText: string }
-  | { name: string }
+  | { byName: string }
   | { partialLinkText: string }
   | { tagName: string }
   | { xpath: string };
@@ -191,7 +191,7 @@ export class By {
    * @param name The name attribute to search for.
    * @returns A new By locator.
    */
-  static name(name: string): By {
+  static byName(name: string): By {
     return By.css(`*[name="${escapeCss(name)}"]`);
   }
 
@@ -432,7 +432,7 @@ type ByKey =
   | 'id'
   | 'linkText'
   | 'js'
-  | 'name'
+  | 'byName'
   | 'partialLinkText'
   | 'tagName'
   | 'xpath';
@@ -446,7 +446,7 @@ interface ByStaticMethods {
   id(value: string): By;
   linkText(value: string): By;
   js(value: string | Function, ...args: unknown[]): LocatorFunction;
-  name(value: string): By;
+  byName(value: string): By;
   partialLinkText(value: string): By;
   tagName(value: string): By;
   xpath(value: string): By;
@@ -487,7 +487,7 @@ export function check(
     'id',
     'linkText',
     'js',
-    'name',
+    'byName',
     'partialLinkText',
     'tagName',
     'xpath'

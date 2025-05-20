@@ -95,7 +95,7 @@ async function installExtension(extension: string, dir: string): Promise<string>
   let { applications } = parsedJSON as {
     applications?: { gecko?: { id?: string } }
   };
-  
+
   if (!(applications && applications.gecko && applications.gecko.id)) {
     throw new AddonFormatError(`Could not find add-on ID for ${extension}`);
   }
@@ -106,10 +106,10 @@ async function installExtension(extension: string, dir: string): Promise<string>
 
 class Profile {
   /** @private */
-  private template_: string | null = null;
+  template_: string | null = null;
 
   /** @private */
-  private extensions_: string[] = [];
+  extensions_: string[] = [];
 
   addExtensions(paths: string[]): void {
     this.extensions_ = this.extensions_.concat(...paths);
@@ -174,7 +174,7 @@ export class Options extends Capabilities {
    * @return The Firefox specific options object.
    * @private
    */
-  private firefoxOptions_(): Record<string, any> {
+  firefoxOptions_(): Record<string, any> {
     let options = this.get(FIREFOX_CAPABILITY_KEY) as Record<string, any>;
     if (!options) {
       options = {};
@@ -187,7 +187,7 @@ export class Options extends Capabilities {
    * @return The Firefox profile.
    * @private
    */
-  private profile_(): Profile {
+  profile_(): Profile {
     let options = this.firefoxOptions_();
     if (!options.profile) {
       options.profile = new Profile();
@@ -321,7 +321,7 @@ export class Options extends Capabilities {
    * Enables moz:debuggerAddress for firefox cdp
    */
   enableDebugger(): Options {
-    return this.set('moz:debuggerAddress', true);
+    return <Options>this.set('moz:debuggerAddress', true);
   }
 
   /**
@@ -329,7 +329,7 @@ export class Options extends Capabilities {
    * @returns A self reference
    */
   enableBidi(): Options {
-    return this.set('webSocketUrl', true);
+    return <Options>this.set('webSocketUrl', true);
   }
 }
 
@@ -358,7 +358,7 @@ function findInProgramFiles(file: string): Promise<string | null> {
     process.env['PROGRAMFILES'] || 'C:\\Program Files',
     process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)',
   ].map((prefix) => path.join(prefix, file));
-  
+
   return io.exists(files[0]).then(function(exists) {
     return exists
       ? files[0]
@@ -393,7 +393,7 @@ function createExecutor(serverUrl: Promise<string>): command.Executor {
  * Configures the given executor with Firefox-specific commands.
  * @param executor the executor to configure.
  */
-function configureExecutor(executor: http.Executor): void {
+function configureExecutor(executor: any): void {
   executor.defineCommand(ExtensionCommand.GET_CONTEXT, 'GET', '/session/:sessionId/moz/context');
   executor.defineCommand(ExtensionCommand.SET_CONTEXT, 'POST', '/session/:sessionId/moz/context');
   executor.defineCommand(ExtensionCommand.INSTALL_ADDON, 'POST', '/session/:sessionId/moz/addon/install');
@@ -434,12 +434,12 @@ export class ServiceBuilder extends remote.DriverService.Builder {
    * @return A new driver service instance.
    */
   build(): remote.DriverService {
-    let port = this.options_.port || findFreePort();
+    let port = (this as any).options_.port || findFreePort();
     let argsPromise = Promise.resolve(port).then((port) => {
       // Start with the default --port argument.
-      let args = this.options_.args.concat(`--port=${port}`);
+      let args = (this as any).options_.args.concat(`--port=${port}`);
       // If the "--connect-existing" flag is not set, add the websocket port.
-      if (!this.options_.args.some((arg) => arg === '--connect-existing')) {
+      if (!(this as any).options_.args.some((arg: string) => arg === '--connect-existing')) {
         return findFreePort().then((wsPort) => {
           args.push(`--websocket-port=${wsPort}`);
           return args;
@@ -448,8 +448,8 @@ export class ServiceBuilder extends remote.DriverService.Builder {
       return args;
     });
 
-    let options = Object.assign({}, this.options_, { args: argsPromise, port });
-    return new remote.DriverService(this.exe_, options);
+    let options = Object.assign({}, (this as any).options_, { args: argsPromise, port });
+    return new remote.DriverService((this as any).exe_, options);
   }
 }
 
@@ -460,10 +460,8 @@ export class Driver extends webdriver.WebDriver {
   /**
    * Creates a new Firefox session.
    *
-   * @param opt_config The
    *    configuration options for this driver, specified as either an
    *    {@link Options} or {@link Capabilities}, or as a raw hash object.
-   * @param opt_executor Either a
    *   pre-configured command executor to use for communicating with an
    *   externally managed remote end (which is assumed to already be running),
    *   or the `DriverService` to use to start the geckodriver in a child
@@ -478,29 +476,74 @@ export class Driver extends webdriver.WebDriver {
    * @throws {Error} If a custom command executor is provided and the driver is
    *     configured to use the legacy FirefoxDriver from the Selenium project.
    * @return A new driver instance.
+   * @param executorOrCaps
+   * @param capabilitiesOrService
+   * @param onQuitOrVendorPrefix
    */
   static createSession(
-    opt_config?: Options | Capabilities | Record<string, any>,
-    opt_executor?: http.Executor | remote.DriverService
+    executorOrCaps?: Options | Capabilities | Record<string, any> | typeof http.Executor ,
+    capabilitiesOrService?: Capabilities | remote.DriverService | typeof http.Executor ,
+    onQuitOrVendorPrefix?: (() => any) | string
   ): Driver {
-    let caps = opt_config instanceof Capabilities ? opt_config : new Options(opt_config);
+    // Handle the WebDriver.createSession signature
+    if (executorOrCaps instanceof http.Executor &&
+        capabilitiesOrService instanceof Capabilities) {
+      // Convert Capabilities to Options if needed
+      const caps = capabilitiesOrService instanceof Options ?
+        capabilitiesOrService :
+        new Options(capabilitiesOrService);
+
+      return super.createSession(
+        executorOrCaps,
+        caps,
+        typeof onQuitOrVendorPrefix === 'function' ? onQuitOrVendorPrefix : undefined
+      ) as Driver;
+    }
+
+    // Use type assertion to avoid type errors
+    let caps: Options;
+
+    if (executorOrCaps instanceof Options) {
+      caps = executorOrCaps;
+    } else {
+      caps = new Options();
+
+      if (executorOrCaps instanceof Capabilities) {
+        // Copy properties from Capabilities to Options
+        const capMap = (executorOrCaps as any).map_;
+        if (capMap) {
+          for (const [key, value] of capMap.entries()) {
+            caps.set(key, value);
+          }
+        }
+      } else if (executorOrCaps && typeof executorOrCaps === 'object' &&
+                !(executorOrCaps instanceof http.Executor)) {
+        // Copy properties from object to Options
+        for (const [key, value] of Object.entries(executorOrCaps as Record<string, any>)) {
+          caps.set(key, value);
+        }
+      }
+    }
 
     let firefoxBrowserPath = null;
 
     let executor: command.Executor;
     let onQuit: (() => void) | undefined;
 
-    if (opt_executor instanceof http.Executor) {
-      executor = opt_executor;
+    if (capabilitiesOrService instanceof http.Executor ||
+        (typeof capabilitiesOrService === 'function' && capabilitiesOrService === http.Executor)) {
+      executor = capabilitiesOrService instanceof http.Executor ?
+        capabilitiesOrService :
+        new http.Executor(Promise.resolve(new http.HttpClient('')));
       configureExecutor(executor);
-    } else if (opt_executor instanceof remote.DriverService) {
-      if (!opt_executor.getExecutable()) {
+    } else if (capabilitiesOrService instanceof remote.DriverService) {
+      if (!capabilitiesOrService.getExecutable()) {
         const { driverPath, browserPath } = getBinaryPaths(caps);
-        opt_executor.setExecutable(driverPath);
+        capabilitiesOrService.setExecutable(driverPath);
         firefoxBrowserPath = browserPath;
       }
-      executor = createExecutor(opt_executor.start());
-      onQuit = () => opt_executor.kill();
+      executor = createExecutor(capabilitiesOrService.start());
+      onQuit = () => capabilitiesOrService.kill();
     } else {
       let service = new ServiceBuilder().build();
       if (!service.getExecutable()) {

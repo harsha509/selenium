@@ -9,6 +9,8 @@ import * as by from './by';
 interface Driver {
   getWindowHandle(): Promise<string>;
   findElements(options: { css: string }): Promise<WebElement[]>;
+  getBidi(): Promise<any>;
+  getCapabilities(): Promise<Map<string, any>>;
 }
 
 /** Minimal marker interface for a web element. */
@@ -17,7 +19,7 @@ interface WebElement {}
 /** Represents the inspector object returned by logInspector. */
 interface LogInspector {
   onJavascriptException(callback: (error: unknown) => void): Promise<number>;
-  removeCallback(id: number): Promise<void>;
+  removeCallback(id: number): void;
   onConsoleEntry(callback: (entry: unknown) => void): Promise<number>;
 }
 
@@ -25,14 +27,14 @@ interface LogInspector {
 interface ScriptManager {
   addPreloadScript(script: string, argumentValues: unknown[]): Promise<number>;
   onMessage(callback: (message: Message) => Promise<void>): Promise<number>;
-  removeCallback(id: number): Promise<void>;
-  removePreloadScript(id: number): Promise<void>;
+  removeCallback(id: number): void;
+  removePreloadScript(script: string): Promise<any>;
   callFunctionInBrowsingContext(
     browsingContextId: string,
     script: string,
     requireUserActivation: boolean,
     argumentList: unknown[]
-  ): Promise<{ result: unknown }>;
+  ): Promise<any>;
 }
 
 /** Represents a message sent by the preload script. */
@@ -199,7 +201,7 @@ class Script {
    */
   async unpin(id: number): Promise<void> {
     await this.#initScript();
-    await this.#script!.removePreloadScript(id);
+    await this.#script!.removePreloadScript(id.toString());
   }
 
   /**

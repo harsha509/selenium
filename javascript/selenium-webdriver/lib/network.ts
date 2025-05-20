@@ -15,26 +15,31 @@ interface AuthHandler {
  * Represents the subset of the BiDi Network API used by this module.
  */
 interface BidiNetwork {
-  addIntercept(params: AddInterceptParameters): Promise<void>;
+  addIntercept(params: AddInterceptParameters): Promise<string>;
   authRequired(
     callback: (event: { request: { request: string; url: string } }) => Promise<void>
-  ): Promise<void>;
+  ): Promise<number>;
   continueWithAuth(
-    requestId: string,
+    requestId: string | number,
     username: string,
     password: string
   ): Promise<void>;
-  continueWithAuthNoCredentials(requestId: string): Promise<void>;
+  continueWithAuthNoCredentials(requestId: string | number): Promise<void>;
+}
+
+// Define a minimal WebDriver interface with just the required methods
+interface WebDriver {
+  getBidi(): Promise<any>;
 }
 
 export default class Network {
   // Private fields
   #callbackId: number = 0;
-  #driver: unknown;
+  #driver: WebDriver;
   #network: BidiNetwork | undefined;
   #authHandlers: Map<number, AuthHandler> = new Map();
 
-  constructor(driver: unknown) {
+  constructor(driver: WebDriver) {
     this.#driver = driver;
   }
 

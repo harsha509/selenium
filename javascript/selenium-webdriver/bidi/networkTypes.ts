@@ -28,9 +28,10 @@ const SameSite = {
 
   findByName(name: string): string | null {
     return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
+      Object.entries(this)
+        .filter(([key]) => key !== 'findByName')
+        .map(([, value]) => value as string)
+        .find((type) => name.toLowerCase() === type.toLowerCase()) || null
     )
   },
 };
@@ -143,7 +144,7 @@ class Header {
  */
 class Cookie {
   private _name: string;
-  private _value: any; // Using any since it's not clearly defined in the original
+  private _value: BytesValue | string | null; // More specific type than 'any'
   private _domain: string;
   private _path: string;
   private _expires: number | null;
@@ -152,7 +153,7 @@ class Cookie {
   private _secure: boolean;
   private _sameSite: string;
 
-  constructor(name: string, value: any, domain: string, path: string, size: number, httpOnly: boolean, secure: boolean, sameSite: string, expires: number | null) {
+  constructor(name: string, value: BytesValue | string | null, domain: string, path: string, size: number, httpOnly: boolean, secure: boolean, sameSite: string, expires: number | null) {
     this._name = name
     this._value = value
     this._domain = domain
@@ -176,7 +177,7 @@ class Cookie {
    * Gets the value of the cookie.
    * @returns {BytesValue} The value of the cookie.
    */
-  get value(): any {
+  get value(): BytesValue | string | null {
     return this._value
   }
 
@@ -455,7 +456,40 @@ class RequestData {
   private _bodySize: number;
   private _timings: FetchTimingInfo;
 
-  constructor(request: string, url: string, method: string, headers: Array<any>, cookies: Array<any>, headersSize: number, bodySize: number, timings: any) {
+  constructor(
+    request: string, 
+    url: string, 
+    method: string, 
+    headers: Array<{name: string, value?: {type: string, value: string}}>, 
+    cookies: Array<{
+      name: string;
+      domain: string;
+      path: string;
+      size: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: string;
+      value?: BytesValue | string | null;
+      expires?: number | null;
+    }>, 
+    headersSize: number, 
+    bodySize: number, 
+    timings: {
+      originTime: number;
+      requestTime: number;
+      redirectStart: number;
+      redirectEnd: number;
+      fetchStart: number;
+      dnsStart: number;
+      dnsEnd: number;
+      connectStart: number;
+      connectEnd: number;
+      tlsStart: number;
+      requestStart: number;
+      responseStart: number;
+      responseEnd: number;
+    }
+  ) {
     this._request = request
     this._url = url
     this._method = method
@@ -576,7 +610,18 @@ class BaseParameters {
   protected _request: RequestData;
   protected _timestamp: number;
 
-  constructor(id: string, navigation: any, redirectCount: number, request: RequestDataParams, timestamp: number) {
+  constructor(
+    id: string, 
+    navigation: {
+      context: string;
+      navigation: string;
+      timestamp: number;
+      url: string;
+    } | null, 
+    redirectCount: number, 
+    request: RequestDataParams, 
+    timestamp: number
+  ) {
     this._id = id
     this._navigation =
       navigation != null
@@ -714,7 +759,25 @@ class Initiator {
 class BeforeRequestSent extends BaseParameters {
   private _initiator: Initiator;
 
-  constructor(id: string, navigation: any, redirectCount: number, request: RequestDataParams, timestamp: number, initiator: any) {
+  constructor(
+    id: string, 
+    navigation: {
+      context: string;
+      navigation: string;
+      timestamp: number;
+      url: string;
+    } | null, 
+    redirectCount: number, 
+    request: RequestDataParams, 
+    timestamp: number, 
+    initiator: {
+      type: string;
+      columnNumber: number;
+      lineNumber: number;
+      stackTrace: string;
+      request: string;
+    }
+  ) {
     super(id, navigation, redirectCount, request, timestamp)
     this._initiator = new Initiator(
       initiator.type,
@@ -795,7 +858,11 @@ class ResponseData {
   private _bytesReceived: number;
   private _headersSize: number;
   private _bodySize: number;
-  private _content: any;
+  private _content: {
+    size: number;
+    mimeType?: string;
+    text?: string;
+  };
 
   constructor(
     url: string,
@@ -808,7 +875,11 @@ class ResponseData {
     bytesReceived: number,
     headersSize: number,
     bodySize: number,
-    content: any,
+    content: {
+      size: number;
+      mimeType?: string;
+      text?: string;
+    },
   ) {
     this._url = url
     this._protocol = protocol
@@ -918,7 +989,11 @@ class ResponseData {
    *
    * @returns {any} The content.
    */
-  get content(): any {
+  get content(): {
+    size: number;
+    mimeType?: string;
+    text?: string;
+  } {
     return this._content
   }
 }

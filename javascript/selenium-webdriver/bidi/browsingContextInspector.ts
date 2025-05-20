@@ -127,7 +127,7 @@ class BrowsingContextInspector {
   async _on(callback: Function): Promise<void> {
     this.ws = await this.bidi.socket;
     this.ws.on('message', (event: any) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()));
+      const { params } = JSON.parse(typeof event === 'string' ? event : event.toString());
       if (params) {
         let response = null;
         if ('navigation' in params) {

@@ -15,26 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-<<<<<<<< HEAD:javascript/selenium-webdriver/lib/atoms/make-atoms-module.ts
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-
-if (process.argv.length < 3) {
-  process.stderr.write(`Usage: node ${path.basename(process.argv[1])} <src file> <dst file>\n`);
-  // eslint-disable-next-line n/no-process-exit
-  process.exit(-1);
-}
-
-const buffer = fs.readFileSync(process.argv[2]);
-
-fs.writeFileSync(
-  process.argv[3],
-  `// GENERATED CODE - DO NOT EDIT
-export default ${buffer.toString('utf8').trim()};
-`,
-);
-========
-import { LocalValue } from './protocolValue';
+import { LocalValue, ReferenceValue } from './protocolValue';
 
 /**
  * @deprecated
@@ -42,13 +23,13 @@ import { LocalValue } from './protocolValue';
  * This extra wrapper is not required.
  */
 export class ArgumentValue {
-  private value: LocalValue | any;
+  private value: LocalValue | ReferenceValue;
 
-  constructor(value: LocalValue | any) {
+  constructor(value: LocalValue | ReferenceValue) {
     this.value = value;
   }
 
-  asMap(): Map<string, any> {
+  asMap(): Record<string, any> {
     if (this.value instanceof LocalValue) {
       return this.value.asMap();
     } else {
@@ -57,4 +38,3 @@ export class ArgumentValue {
     }
   }
 }
->>>>>>>> 5b1dca5e4d (migrate to ts):javascript/selenium-webdriver/bidi/argumentValue.ts
