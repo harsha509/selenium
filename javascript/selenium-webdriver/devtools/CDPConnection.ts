@@ -1,4 +1,3 @@
-
 // Licensed to the Software Freedom Conservancy (SFC) under one
 // or more contributor license agreements.  See the NOTICE file
 // distributed with this work for additional information
@@ -16,38 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import { logging } from '../lib/logging';
+import * as logging from '../lib/logging';
 
 const RESPONSE_TIMEOUT = 1000 * 30;
 
-interface WSConnection {
-  send(data: string, callback?: () => void): void;
-  on(event: string, listener: (data: Buffer | ArrayBuffer | Buffer[]) => void): WSConnection;
-  off(event: string, listener: (data: Buffer | ArrayBuffer | Buffer[]) => void): void;
-}
-
-interface CDPMessage {
-  method: string;
-  id: number;
-  sessionId?: string;
-  params?: Record<string, any>;
-}
-
 export class CDPConnection {
-  private _wsConnection: WSConnection;
+  private _wsConnection: any;
   private cmd_id: number;
   public targetID: string | null;
   public sessionId: string | null;
 
-  constructor(wsConnection: WSConnection) {
+  constructor(wsConnection: any) {
     this._wsConnection = wsConnection;
     this.cmd_id = 0;
     this.targetID = null;
     this.sessionId = null;
   }
 
-  execute(method: string, params: Record<string, any>, callback?: () => void): void {
-    let message: CDPMessage = {
+  execute(method: string, params: any, callback: Function): void {
+    let message: Record<string, any> = {
       method,
       id: this.cmd_id++,
     };
@@ -59,9 +45,9 @@ export class CDPConnection {
     this._wsConnection.send(JSON.stringify(mergedMessage), callback);
   }
 
-  async send(method: string, params: Record<string, any>): Promise<any> {
+  async send(method: string, params: any): Promise<any> {
     let cdp_id = this.cmd_id++;
-    let message: CDPMessage = {
+    let message: Record<string, any> = {
       method,
       id: cdp_id,
     };
@@ -78,7 +64,7 @@ export class CDPConnection {
         handler.off('message', listener);
       }, RESPONSE_TIMEOUT);
 
-      const listener = (data: Buffer | ArrayBuffer | Buffer[]) => {
+      const listener = (data: any) => {
         try {
           const payload = JSON.parse(data.toString());
           if (payload.id === cdp_id) {
