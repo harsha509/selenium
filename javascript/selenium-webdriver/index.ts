@@ -81,20 +81,17 @@ function startSeleniumServer(jar: string): Promise<string> {
  * @return The enhanced constructor function.
  */
 function ensureFileDetectorsAreEnabled<T extends typeof webdriver.WebDriver>(ctor: T): T {
-  // Create a new constructor function that extends the original
-  function EnhancedDriver(this: any, ...args: any[]) {
-    // Call the original constructor
-    ctor.apply(this, args);
+  // Create a new class that extends the original
+  class EnhancedDriver extends (ctor as any) {
+    constructor(...args: any[]) {
+      super(...args);
+    }
+    
+    // Override the setFileDetector method
+    setFileDetector(detector: input.FileDetector) {
+      webdriver.WebDriver.prototype.setFileDetector.call(this, detector);
+    }
   }
-  
-  // Set up the prototype chain
-  EnhancedDriver.prototype = Object.create(ctor.prototype);
-  EnhancedDriver.prototype.constructor = EnhancedDriver;
-  
-  // Override the setFileDetector method
-  EnhancedDriver.prototype.setFileDetector = function(detector: input.FileDetector) {
-    webdriver.WebDriver.prototype.setFileDetector.call(this, detector);
-  };
   
   // Copy static properties
   Object.setPrototypeOf(EnhancedDriver, ctor);
@@ -138,43 +135,9 @@ const THENABLE_DRIVERS = new Map<typeof webdriver.WebDriver, ThenableWebDriverCo
    * @return A new WebDriver instance.
    */
   function createDriver<T extends typeof webdriver.WebDriver>(ctor: T, ...args: any[]): ThenableWebDriver {
-    let thenableWebDriverProxy = THENABLE_DRIVERS.get(ctor);
-    if (!thenableWebDriverProxy) {
-      // Create a new constructor function
-      function ProxyDriver(this: any, ...args: any[]) {
-        // Call the original constructor
-        ctor.apply(this, args);
-        
-        // Set up the thenable interface
-        const pd = this.getSession().then((session: any) => {
-          // Create a new instance with the session
-          const newArgs = [session].concat(Array.prototype.slice.call(args, 1));
-          return new (ctor as any)(...newArgs);
-        });
-        
-        // Bind the Promise methods
-        this.then = pd.then.bind(pd);
-        this.catch = pd.catch.bind(pd);
-      }
-      
-      // Set up the prototype chain
-      ProxyDriver.prototype = Object.create(ctor.prototype);
-      ProxyDriver.prototype.constructor = ProxyDriver;
-      
-      // Copy static properties
-      Object.setPrototypeOf(ProxyDriver, ctor);
-      
-      // Add static createSession method that can handle different signatures
-      (ProxyDriver as any).createSession = function(...args: any[]): ThenableWebDriver {
-        // Handle different signatures by passing through all arguments
-        return new (ProxyDriver as any)(...args);
-      };
-      
-      thenableWebDriverProxy = ProxyDriver as unknown as ThenableWebDriverConstructor;
-      THENABLE_DRIVERS.set(ctor, thenableWebDriverProxy);
-    }
-    
-    return thenableWebDriverProxy.createSession(...args);
+    // Simply return the driver created by createSession
+    // The browser-specific drivers already handle the session creation properly
+    return (ctor as any).createSession(...args);
   }
 
 /**

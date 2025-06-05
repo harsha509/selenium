@@ -66,7 +66,7 @@ function getRequestOptions(aUrl: string): RequestOptions {
 
 /** @const {string} */
 const USER_AGENT = (function() {
-  const version = require('../package.json').version;
+  const version = require('../../package.json').version;
   const platform = { darwin: 'mac', win32: 'windows' }[process.platform] || 'linux';
   return `selenium/${version} (js ${platform})`;
 })();
@@ -252,7 +252,7 @@ function sendRequest(
             headers[key] = value;
           }
         }
-        
+
         onError(
           Error(
             'Failed to parse "Location" header for server redirect: ' +
@@ -307,7 +307,7 @@ function sendRequest(
           headers[key] = value;
         }
       }
-      
+
       const resp = new httpLib.Response(
         response.statusCode || 0,
         headers,

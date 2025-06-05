@@ -60,7 +60,7 @@ function getBinary(): string {
 
   const file = directory === 'windows' ? 'selenium-manager.exe' : 'selenium-manager';
 
-  let seleniumManagerBasePath = path.join(__dirname, '..', '/bin');
+  let seleniumManagerBasePath = path.join(__dirname, '..', '..', 'bin');
 
   const filePath = process.env.SE_MANAGER_PATH || path.join(seleniumManagerBasePath, directory, file);
 

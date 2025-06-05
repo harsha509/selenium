@@ -14,7 +14,22 @@
   "bugs": {
     "url": "https://github.com/SeleniumHQ/selenium/issues"
   },
-  "main": "./index",
+  "main": "./cjs/index.js",
+  "module": "./esm/index.js",
+  "types": "./cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./esm/index.js",
+      "require": "./cjs/index.js",
+      "types": "./cjs/index.d.ts"
+    },
+    "./*": {
+      "import": "./esm/*.js",
+      "require": "./cjs/*.js",
+      "types": "./cjs/*.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/SeleniumHQ/selenium.git"

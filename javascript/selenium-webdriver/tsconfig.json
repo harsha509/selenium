@@ -19,6 +19,7 @@
     "strictFunctionTypes": false,
     "strictPropertyInitialization": false,
     "typeRoots": ["./node_modules/@types"],
+    "declaration": true,
     "emitDeclarationOnly": false,
     "checkJs": false,
     "skipDefaultLibCheck": true,

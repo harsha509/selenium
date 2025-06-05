@@ -63,7 +63,7 @@ ts_project(
     name = "ts-compile-cjs",
     srcs = [":ts_sources"],
     allow_js = False,
-    declaration = False,
+    declaration = True,
     out_dir = "cjs",
     resolve_json_module = True,
     root_dir = ".",
@@ -82,12 +82,12 @@ ts_project(
     ],
 )
 
-# TypeScript compilation - ESM output
+# TypeScript compilation - ESM output (actually CommonJS for compatibility)
 ts_project(
     name = "ts-compile-esm",
     srcs = [":ts_sources"],
     allow_js = False,
-    declaration = False,
+    declaration = True,
     out_dir = "esm",
     resolve_json_module = True,
     root_dir = ".",

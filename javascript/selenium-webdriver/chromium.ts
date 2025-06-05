@@ -220,7 +220,16 @@ export class ServiceBuilder {
     if (this.loopback_) {
       args.push('--bind-address=localhost');
     }
-    return new remote.DriverService(this.exe_ || '', {args, port: 0});
+    
+    // Use the DriverService.Builder to properly handle port allocation
+    const builder = new remote.DriverService.Builder(this.exe_);
+    builder.setLoopback(this.loopback_);
+    if (this.path_) {
+      builder.setPath(this.path_);
+    }
+    args.forEach(arg => builder.addArguments(arg));
+    
+    return builder.build();
   }
 }
 
@@ -555,7 +564,7 @@ export class Driver extends webdriver.WebDriver {
     }
 
     const actualCaps = caps instanceof Options ? caps.toCapabilities() : (caps || new Capabilities());
-    return new Driver(executor as any, actualCaps as any, onQuit);
+    return webdriver.WebDriver.createSession(executor, actualCaps, onQuit) as Driver;
   }
 
   /**

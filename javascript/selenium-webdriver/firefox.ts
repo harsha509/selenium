@@ -434,22 +434,12 @@ export class ServiceBuilder extends remote.DriverService.Builder {
    * @return A new driver service instance.
    */
   build(): remote.DriverService {
-    let port = (this as any).options_.port || findFreePort();
-    let argsPromise = Promise.resolve(port).then((port) => {
-      // Start with the default --port argument.
-      let args = (this as any).options_.args.concat(`--port=${port}`);
-      // If the "--connect-existing" flag is not set, add the websocket port.
-      if (!(this as any).options_.args.some((arg: string) => arg === '--connect-existing')) {
-        return findFreePort().then((wsPort) => {
-          args.push(`--websocket-port=${wsPort}`);
-          return args;
-        });
-      }
-      return args;
-    });
-
-    let options = Object.assign({}, (this as any).options_, { args: argsPromise, port });
-    return new remote.DriverService((this as any).exe_, options);
+    // Add the websocket port argument as a promise
+    // This is required for Firefox to work properly
+    this.addArguments(findFreePort().then((wsPort) => `--websocket-port=${wsPort}`));
+    
+    // Now build using the parent class which will handle all arguments properly
+    return super.build();
   }
 }
 
