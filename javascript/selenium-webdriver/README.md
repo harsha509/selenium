@@ -82,6 +82,7 @@ requests are welcome for any supported version.
 
 - [Getting Started](https://www.selenium.dev/documentation/webdriver/getting_started/)
 - [JavaScript API Docs](https://www.selenium.dev/selenium/docs/api/javascript/)
+- TypeScript type definitions are bundled with the package; no separate `@types` package is needed.
 - [Selenium Manager](https://www.selenium.dev/documentation/selenium_manager/)
 - [Selenium Grid](https://www.selenium.dev/documentation/grid/)
 

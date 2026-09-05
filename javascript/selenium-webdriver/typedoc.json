@@ -1,0 +1,38 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "Selenium WebDriver JavaScript API",
+  "readme": "README.md",
+  "tsconfig": "tsconfig.json",
+  "entryPointStrategy": "expand",
+  "entryPoints": [
+    "index.ts",
+    "chrome.ts",
+    "chromium.ts",
+    "edge.ts",
+    "firefox.ts",
+    "ie.ts",
+    "safari.ts",
+    "proxy.ts",
+    "bidi",
+    "common",
+    "devtools",
+    "http",
+    "io",
+    "lib",
+    "net",
+    "remote",
+    "testing"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/test/**",
+    "bidi/generated/**",
+    "bidi/generated_src/**",
+    "lib/test/**",
+    "**/*.d.ts"
+  ],
+  "out": "../../build/docs/api/javascript",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "treatWarningsAsErrors": false
+}
