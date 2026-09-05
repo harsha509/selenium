@@ -83,6 +83,12 @@ export interface Rect {
 }
 
 /** A record object describing a browser cookie. */
+/** Compatibility names kept from @types/selenium-webdriver. */
+export type ILocation = Pick<Rect, 'x' | 'y'>
+export type ISize = Pick<Rect, 'width' | 'height'>
+export type IRectangle = Rect
+export type ITimeouts = Timeouts
+
 export interface Cookie {
   /** The name of the cookie. */
   name: string
@@ -104,6 +110,7 @@ export interface Cookie {
   /** The SameSite policy: one of 'Lax', 'Strict' or 'None'. */
   sameSite?: string
 }
+export type IWebDriverOptionsCookie = Cookie
 
 /** Options accepted by {@link WebDriver#printPage}. */
 export interface PrintPageOptions {
@@ -3423,5 +3430,8 @@ export class AlertPromise extends Alert implements PromiseLike<Alert> {
 }
 
 /** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+// Type-only: trunk never exported the class at runtime.
+export type { ShadowRootPromise }
+
 const defaultExport: typeof self = self
 export default defaultExport

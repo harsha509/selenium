@@ -104,6 +104,8 @@ export interface Timeouts {
 
 /** Runtime placeholder so `Timeouts` stays an export; the shape is the interface above. */
 export function Timeouts(): void {}
+/** Compatibility name kept from @types/selenium-webdriver. */
+export type ITimeouts = Timeouts
 
 /**
  * The possible default actions a WebDriver session can take to respond to
