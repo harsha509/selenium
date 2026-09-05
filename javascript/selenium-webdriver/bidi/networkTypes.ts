@@ -227,10 +227,10 @@ export class Header {
  */
 export class Cookie {
   private readonly _name: string
-  private readonly _value: BytesValueJson | null
+  private readonly _value: BytesValueJson | null | undefined
   private readonly _domain: string
   private readonly _path: string
-  private readonly _expires: number | null
+  private readonly _expires: number | null | undefined
   private readonly _size: number
   private readonly _httpOnly: boolean
   private readonly _secure: boolean
@@ -238,14 +238,14 @@ export class Cookie {
 
   constructor(
     name: string,
-    value: BytesValueJson | null,
+    value: BytesValueJson | null | undefined,
     domain: string,
     path: string,
     size: number,
     httpOnly: boolean,
     secure: boolean,
     sameSite: string,
-    expires: number | null,
+    expires: number | null | undefined,
   ) {
     this._name = name
     this._value = value
@@ -268,7 +268,7 @@ export class Cookie {
   /**
    * Gets the value of the cookie.
    */
-  get value(): BytesValueJson | null {
+  get value(): BytesValueJson | null | undefined {
     return this._value
   }
 
@@ -289,7 +289,7 @@ export class Cookie {
   /**
    * Gets the expiration date of the cookie.
    */
-  get expires(): number | null {
+  get expires(): number | null | undefined {
     return this._expires
   }
 
@@ -480,8 +480,8 @@ class RequestData {
       const httpOnly = cookie.httpOnly
       const secure = cookie.secure
       const sameSite = cookie.sameSite
-      const value = 'value' in cookie ? (cookie.value ?? null) : null
-      const expires = 'expires' in cookie ? (cookie.expires ?? null) : null
+      const value = 'value' in cookie ? cookie.value : null
+      const expires = 'expires' in cookie ? cookie.expires : null
       this._cookies.push(new Cookie(name, value, domain, path, size, httpOnly, secure, sameSite, expires))
     })
     this._headersSize = headersSize

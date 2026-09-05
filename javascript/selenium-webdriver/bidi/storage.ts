@@ -15,40 +15,100 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { CookieFilter } = require('./cookieFilter')
-const { BrowsingContextPartitionDescriptor, StorageKeyPartitionDescriptor } = require('./partitionDescriptor')
-const { PartitionKey } = require('./partitionKey')
-const { PartialCookie } = require('./partialCookie')
-const { Cookie, BytesValue } = require('./networkTypes')
+import type BiDi from './index'
+import type { Capabilities } from '../lib/capabilities'
+import { CookieFilter } from './cookieFilter'
+import { BrowsingContextPartitionDescriptor, StorageKeyPartitionDescriptor } from './partitionDescriptor'
+import { PartitionKey } from './partitionKey'
+import { PartialCookie } from './partialCookie'
+import { Cookie, BytesValue, BytesValueJson } from './networkTypes'
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface BidiDriver {
+  getCapabilities(): Promise<Capabilities>
+  getBidi(): Promise<BiDi>
+}
+
+/** Either partition descriptor accepted by the storage commands. */
+type PartitionDescriptor = BrowsingContextPartitionDescriptor | StorageKeyPartitionDescriptor
+
+/** A storage cookie as received on the wire. */
+interface StorageCookieJson {
+  name: string
+  value: BytesValueJson
+  domain: string
+  path: string
+  size: number
+  httpOnly: boolean
+  secure: boolean
+  sameSite: string
+  expiry?: number
+}
+
+/** A storage.PartitionKey as received on the wire. */
+interface PartitionKeyJson {
+  userContext?: string
+  sourceOrigin?: string
+}
+
+/** Result of storage.getCookies. */
+interface GetCookiesResult {
+  cookies: StorageCookieJson[]
+  partitionKey?: PartitionKeyJson
+}
+
+/** Result of storage.setCookie and storage.deleteCookies. */
+interface PartitionKeyResult {
+  partitionKey?: PartitionKeyJson
+}
+
+/** Builds a {@link PartitionKey} when the result carries a complete one, as trunk's own-property checks did. */
+function toPartitionKey(result: PartitionKeyResult): PartitionKey | undefined {
+  if (Object.prototype.hasOwnProperty.call(result, 'partitionKey')) {
+    const partitionKey = result.partitionKey
+    if (
+      Object.prototype.hasOwnProperty.call(partitionKey, 'userContext') &&
+      Object.prototype.hasOwnProperty.call(partitionKey, 'sourceOrigin') &&
+      typeof partitionKey?.userContext === 'string' &&
+      typeof partitionKey.sourceOrigin === 'string'
+    ) {
+      return new PartitionKey(partitionKey.userContext, partitionKey.sourceOrigin)
+    }
+  }
+  return undefined
+}
 
 /**
  * Represents commands of Storage module.
  * Described in https://w3c.github.io/webdriver-bidi/#module-storage.
- * @class
  */
 class Storage {
-  constructor(driver) {
+  private readonly _driver: BidiDriver
+  bidi!: BiDi
+
+  constructor(driver: BidiDriver) {
     this._driver = driver
   }
 
-  async init() {
+  async init(): Promise<void> {
     if (!(await this._driver.getCapabilities()).get('webSocketUrl')) {
       throw Error('WebDriver instance must support BiDi protocol')
     }
-
     this.bidi = await this._driver.getBidi()
   }
 
   /**
    * Retrieves cookies based on the provided filter and partition.
-   *
-   * @param {CookieFilter} [filter] - The filter to apply to the cookies.
-   * @param {(BrowsingContextPartitionDescriptor|StorageKeyPartitionDescriptor)} [partition] - The partition to retrieve cookies from.
-   * @returns {Promise<{ cookies: Cookie[], partitionKey: (PartitionKey|undefined) }>} - A promise that resolves to an object containing the retrieved cookies and an optional partition key.
+   * @param filter - The filter to apply to the cookies.
+   * @param partition - The partition to retrieve cookies from.
+   * @returns A promise that resolves to an object containing the retrieved cookies and an optional partition key.
    * @throws {Error} If the filter parameter is provided but is not an instance of CookieFilter.
    * @throws {Error} If the partition parameter is provided but is not an instance of BrowsingContextPartitionDescriptor or StorageKeyPartitionDescriptor.
    */
-  async getCookies(filter = undefined, partition = undefined) {
+  async getCookies(
+    filter: CookieFilter | undefined = undefined,
+    partition: PartitionDescriptor | undefined = undefined,
+  ): Promise<{ cookies: Cookie[]; partitionKey?: PartitionKey } | undefined> {
     if (filter !== undefined && !(filter instanceof CookieFilter)) {
       throw new Error(`Params must be an instance of CookieFilter. Received:'${filter}'`)
     }
@@ -70,9 +130,10 @@ class Storage {
       },
     }
 
-    let response = await this.bidi.send(command)
+    const response = await this.bidi.send<GetCookiesResult>(command)
 
-    let cookies = []
+    const cookies: Cookie[] = []
+
     response.result.cookies.forEach((cookie) => {
       cookies.push(
         new Cookie(
@@ -90,30 +151,26 @@ class Storage {
     })
 
     if (Object.prototype.hasOwnProperty.call(response.result, 'partitionKey')) {
-      if (
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'userContext') &&
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'sourceOrigin')
-      ) {
-        let partitionKey = new PartitionKey(
-          response.result.partitionKey.userContext,
-          response.result.partitionKey.sourceOrigin,
-        )
+      const partitionKey = toPartitionKey(response.result)
+      if (partitionKey !== undefined) {
         return { cookies, partitionKey }
       }
-
       return { cookies }
     }
+    return undefined
   }
 
   /**
    * Sets a cookie using the provided cookie object and partition.
-   *
-   * @param {PartialCookie} cookie - The cookie object to set.
-   * @param {(BrowsingContextPartitionDescriptor|StorageKeyPartitionDescriptor)} [partition] - The partition to use for the cookie.
-   * @returns {PartitionKey} The partition key of the set cookie.
+   * @param cookie - The cookie object to set.
+   * @param partition - The partition to use for the cookie.
+   * @returns The partition key of the set cookie.
    * @throws {Error} If the cookie parameter is not an instance of PartialCookie or if the partition parameter is not an instance of PartitionDescriptor.
    */
-  async setCookie(cookie, partition = undefined) {
+  async setCookie(
+    cookie: PartialCookie,
+    partition: PartitionDescriptor | undefined = undefined,
+  ): Promise<PartitionKey | undefined> {
     if (!(cookie instanceof PartialCookie)) {
       throw new Error(`Params must be an instance of PartialCookie. Received:'${cookie}'`)
     }
@@ -135,27 +192,22 @@ class Storage {
       },
     }
 
-    let response = await this.bidi.send(command)
+    const response = await this.bidi.send<PartitionKeyResult>(command)
 
-    if (Object.prototype.hasOwnProperty.call(response.result, 'partitionKey')) {
-      if (
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'userContext') &&
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'sourceOrigin')
-      ) {
-        return new PartitionKey(response.result.partitionKey.userContext, response.result.partitionKey.sourceOrigin)
-      }
-    }
+    return toPartitionKey(response.result)
   }
 
   /**
    * Deletes cookies based on the provided filter and partition.
-   *
-   * @param {CookieFilter} [cookieFilter] - The filter to apply to the cookies. Must be an instance of CookieFilter.
-   * @param {(BrowsingContextPartitionDescriptor|StorageKeyPartitionDescriptor)} [partition] - The partition to delete cookies from. Must be an instance of either BrowsingContextPartitionDescriptor or StorageKeyPartitionDescriptor.
-   * @returns {PartitionKey} - The partition key of the deleted cookies, if available.
+   * @param cookieFilter - The filter to apply to the cookies. Must be an instance of CookieFilter.
+   * @param partition - The partition to delete cookies from. Must be an instance of either BrowsingContextPartitionDescriptor or StorageKeyPartitionDescriptor.
+   * @returns The partition key of the deleted cookies, if available.
    * @throws {Error} - If the provided parameters are not of the correct type.
    */
-  async deleteCookies(cookieFilter = undefined, partition = undefined) {
+  async deleteCookies(
+    cookieFilter: CookieFilter | undefined = undefined,
+    partition: PartitionDescriptor | undefined = undefined,
+  ): Promise<PartitionKey | undefined> {
     if (cookieFilter !== undefined && !(cookieFilter instanceof CookieFilter)) {
       throw new Error(`Params must be an instance of CookieFilter. Received:'${cookieFilter}'`)
     }
@@ -177,23 +229,16 @@ class Storage {
       },
     }
 
-    let response = await this.bidi.send(command)
+    const response = await this.bidi.send<PartitionKeyResult>(command)
 
-    if (Object.prototype.hasOwnProperty.call(response.result, 'partitionKey')) {
-      if (
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'userContext') &&
-        Object.prototype.hasOwnProperty.call(response.result.partitionKey, 'sourceOrigin')
-      ) {
-        return new PartitionKey(response.result.partitionKey.userContext, response.result.partitionKey.sourceOrigin)
-      }
-    }
+    return toPartitionKey(response.result)
   }
 }
 
-async function getStorageInstance(driver) {
-  let instance = new Storage(driver)
+async function getStorageInstance(driver: BidiDriver): Promise<Storage> {
+  const instance = new Storage(driver)
   await instance.init()
   return instance
 }
 
-module.exports = getStorageInstance
+export = getStorageInstance

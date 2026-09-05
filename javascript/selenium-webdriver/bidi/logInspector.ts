@@ -15,8 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { FilterBy } = require('./filterBy')
-const { ConsoleLogEntry, JavascriptLogEntry, GenericLogEntry } = require('./logEntries')
+import type WebSocket from 'ws'
+import type BiDi from './index'
+import { FilterBy } from './filterBy'
+import { ConsoleLogEntry, JavascriptLogEntry, GenericLogEntry, LogCallback, LogEntry } from './logEntries'
+import type { SourceJson } from './scriptTypes'
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface BidiDriver {
+  getBidi(): Promise<BiDi>
+}
 
 const LOG = {
   TYPE_CONSOLE: 'console',
@@ -27,14 +35,35 @@ const LOG = {
   TYPE_JS_LOGS_FILTER: 'javascript_filter',
   TYPE_JS_EXCEPTION_FILTER: 'javascriptException_filter',
   TYPE_LOGS_FILTER: 'logs_filter',
+} as const
+
+/** A handler registered together with the level it is filtered on. */
+interface FilteredLogCallback {
+  callback: LogCallback
+  filter: FilterBy
+}
+
+/** The `params` of a log.entryAdded event, as received on the wire. */
+interface LogEntryJson {
+  type?: string
+  level: string
+  source: SourceJson
+  text: string
+  timestamp: number
+  method: string
+  args: unknown[]
+  stackTrace: unknown
 }
 
 class LogInspector {
-  bidi
-  ws
+  bidi!: BiDi
+  ws!: WebSocket
   #callbackId = 0
+  private readonly _driver: BidiDriver
+  private readonly _browsingContextIds: string[] | undefined
+  listener: Map<string, Map<number, LogCallback | FilteredLogCallback>>
 
-  constructor(driver, browsingContextIds) {
+  constructor(driver: BidiDriver, browsingContextIds: string[] | undefined) {
     this._driver = driver
     this._browsingContextIds = browsingContextIds
     this.listener = new Map()
@@ -50,22 +79,21 @@ class LogInspector {
 
   /**
    * Subscribe to log event
-   * @returns {Promise<void>}
    */
-  async init() {
+  async init(): Promise<void> {
     this.bidi = await this._driver.getBidi()
     await this.bidi.subscribe('log.entryAdded', this._browsingContextIds)
   }
 
-  addCallback(eventType, callback) {
+  addCallback(eventType: string, callback: LogCallback | FilteredLogCallback): number {
     const id = ++this.#callbackId
 
     const eventCallbackMap = this.listener.get(eventType)
-    eventCallbackMap.set(id, callback)
+    eventCallbackMap?.set(id, callback)
     return id
   }
 
-  removeCallback(id) {
+  removeCallback(id: number): void {
     let hasId = false
     for (const [, callbacks] of this.listener) {
       if (callbacks.has(id)) {
@@ -79,19 +107,24 @@ class LogInspector {
     }
   }
 
-  invokeCallbacks(eventType, data) {
+  invokeCallbacks(eventType: string, data: LogEntry): void {
     const callbacks = this.listener.get(eventType)
     if (callbacks) {
       for (const [, callback] of callbacks) {
-        callback(data)
+        if (typeof callback === 'function') {
+          callback(data)
+        }
       }
     }
   }
 
-  invokeCallbacksWithFilter(eventType, data, filterLevel) {
+  invokeCallbacksWithFilter(eventType: string, data: LogEntry, filterLevel: string): void {
     const callbacks = this.listener.get(eventType)
     if (callbacks) {
       for (const [, value] of callbacks) {
+        if (typeof value === 'function') {
+          continue
+        }
         const callback = value.callback
         const filter = value.filter
         if (filterLevel === filter.getLevel()) {
@@ -105,28 +138,23 @@ class LogInspector {
    * Listen to Console logs
    * @param callback
    * @param filterBy
-   * @returns {Promise<number>}
    */
-  async onConsoleEntry(callback, filterBy = undefined) {
+  async onConsoleEntry(callback: LogCallback, filterBy: FilterBy | undefined = undefined): Promise<number> {
     if (filterBy !== undefined && !(filterBy instanceof FilterBy)) {
       throw Error(`Pass valid FilterBy object. Received: ${filterBy}`)
     }
 
     let id
-
     if (filterBy !== undefined) {
       id = this.addCallback(LOG.TYPE_CONSOLE_FILTER, { callback: callback, filter: filterBy })
     } else {
       id = this.addCallback(LOG.TYPE_CONSOLE, callback)
     }
-
     this.ws = await this.bidi.socket
-
     this.ws.on('message', (event) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()))
-
+      const { params }: { params?: LogEntryJson } = JSON.parse(event.toString())
       if (params?.type === LOG.TYPE_CONSOLE) {
-        let consoleEntry = new ConsoleLogEntry(
+        const consoleEntry = new ConsoleLogEntry(
           params.level,
           params.source,
           params.text,
@@ -147,7 +175,6 @@ class LogInspector {
         this.invokeCallbacks(LOG.TYPE_CONSOLE, consoleEntry)
       }
     })
-
     return id
   }
 
@@ -155,28 +182,23 @@ class LogInspector {
    * Listen to JS logs
    * @param callback
    * @param filterBy
-   * @returns {Promise<number>}
    */
-  async onJavascriptLog(callback, filterBy = undefined) {
+  async onJavascriptLog(callback: LogCallback, filterBy: FilterBy | undefined = undefined): Promise<number> {
     if (filterBy !== undefined && !(filterBy instanceof FilterBy)) {
       throw Error(`Pass valid FilterBy object. Received: ${filterBy}`)
     }
 
     let id
-
     if (filterBy !== undefined) {
       id = this.addCallback(LOG.TYPE_JS_LOGS_FILTER, { callback: callback, filter: filterBy })
     } else {
       id = this.addCallback(LOG.TYPE_JS_LOGS, callback)
     }
-
     this.ws = await this.bidi.socket
-
     this.ws.on('message', (event) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()))
-
+      const { params }: { params?: LogEntryJson } = JSON.parse(event.toString())
       if (params?.type === LOG.TYPE_JS_LOGS) {
-        let jsEntry = new JavascriptLogEntry(
+        const jsEntry = new JavascriptLogEntry(
           params.level,
           params.source,
           params.text,
@@ -195,23 +217,20 @@ class LogInspector {
         this.invokeCallbacks(LOG.TYPE_JS_LOGS, jsEntry)
       }
     })
-
     return id
   }
 
   /**
    * Listen to JS Exceptions
    * @param callback
-   * @returns {Promise<number>}
    */
-  async onJavascriptException(callback) {
+  async onJavascriptException(callback: LogCallback): Promise<number> {
     const id = this.addCallback(LOG.TYPE_JS_EXCEPTION, callback)
     this.ws = await this.bidi.socket
-
     this.ws.on('message', (event) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()))
+      const { params }: { params?: LogEntryJson } = JSON.parse(event.toString())
       if (params?.type === 'javascript' && params?.level === 'error') {
-        let jsErrorEntry = new JavascriptLogEntry(
+        const jsErrorEntry = new JavascriptLogEntry(
           params.level,
           params.source,
           params.text,
@@ -219,11 +238,9 @@ class LogInspector {
           params.type,
           params.stackTrace,
         )
-
         this.invokeCallbacks(LOG.TYPE_JS_EXCEPTION, jsErrorEntry)
       }
     })
-
     return id
   }
 
@@ -231,9 +248,8 @@ class LogInspector {
    * Listen to any logs
    * @param callback
    * @param filterBy
-   * @returns {Promise<number>}
    */
-  async onLog(callback, filterBy = undefined) {
+  async onLog(callback: LogCallback, filterBy: FilterBy | undefined = undefined): Promise<number> {
     if (filterBy !== undefined && !(filterBy instanceof FilterBy)) {
       throw Error(`Pass valid FilterBy object. Received: ${filterBy}`)
     }
@@ -244,13 +260,11 @@ class LogInspector {
     } else {
       id = this.addCallback(LOG.TYPE_LOGS, callback)
     }
-
     this.ws = await this.bidi.socket
-
     this.ws.on('message', (event) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()))
+      const { params }: { params?: LogEntryJson } = JSON.parse(event.toString())
       if (params?.type === 'javascript') {
-        let jsEntry = new JavascriptLogEntry(
+        const jsEntry = new JavascriptLogEntry(
           params.level,
           params.source,
           params.text,
@@ -258,7 +272,6 @@ class LogInspector {
           params.type,
           params.stackTrace,
         )
-
         if (filterBy !== undefined) {
           if (params?.level === filterBy.getLevel()) {
             callback(jsEntry)
@@ -266,21 +279,12 @@ class LogInspector {
           return
         }
 
-        if (filterBy !== undefined) {
-          if (params?.level === filterBy.getLevel()) {
-            {
-              this.invokeCallbacksWithFilter(LOG.TYPE_LOGS_FILTER, jsEntry, filterBy.getLevel())
-            }
-            return
-          }
-        }
-
         this.invokeCallbacks(LOG.TYPE_LOGS, jsEntry)
         return
       }
 
       if (params?.type === 'console') {
-        let consoleEntry = new ConsoleLogEntry(
+        const consoleEntry = new ConsoleLogEntry(
           params.level,
           params.source,
           params.text,
@@ -302,13 +306,13 @@ class LogInspector {
         return
       }
 
-      if (params !== undefined && !['console', 'javascript'].includes(params?.type)) {
-        let genericEntry = new GenericLogEntry(
+      if (params !== undefined && !['console', 'javascript'].includes(params?.type ?? '')) {
+        const genericEntry = new GenericLogEntry(
           params.level,
           params.source,
           params.text,
           params.timestamp,
-          params.type,
+          params.type ?? '',
           params.stackTrace,
         )
 
@@ -325,15 +329,13 @@ class LogInspector {
         return
       }
     })
-
     return id
   }
 
   /**
    * Unsubscribe to log event
-   * @returns {Promise<void>}
    */
-  async close() {
+  async close(): Promise<void> {
     if (
       this._browsingContextIds !== null &&
       this._browsingContextIds !== undefined &&
@@ -350,16 +352,11 @@ class LogInspector {
  * initiate inspector instance and return
  * @param driver
  * @param browsingContextIds
- * @returns {Promise<LogInspector>}
  */
-async function getLogInspectorInstance(driver, browsingContextIds) {
-  let instance = new LogInspector(driver, browsingContextIds)
+async function getLogInspectorInstance(driver: BidiDriver, browsingContextIds?: string[]): Promise<LogInspector> {
+  const instance = new LogInspector(driver, browsingContextIds)
   await instance.init()
   return instance
 }
 
-/**
- * API
- * @type {function(*, *): Promise<LogInspector>}
- */
-module.exports = getLogInspectorInstance
+export = getLogInspectorInstance

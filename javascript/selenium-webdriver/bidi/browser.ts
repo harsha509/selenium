@@ -53,8 +53,8 @@ class Browser {
       method: 'browser.createUserContext',
       params: {},
     }
-    const response = await this.bidi.send(command)
-    return (response.result as { userContext: string }).userContext
+    const response = await this.bidi.send<{ userContext: string }>(command)
+    return response.result.userContext
   }
 
   /**
@@ -66,9 +66,9 @@ class Browser {
       method: 'browser.getUserContexts',
       params: {},
     }
-    const response = await this.bidi.send(command)
+    const response = await this.bidi.send<{ userContexts: { userContext: string }[] }>(command)
     const userContexts: string[] = []
-    const userContextsArray = (response.result as { userContexts: { userContext: string }[] }).userContexts
+    const userContextsArray = response.result.userContexts
     for (const userContextJson of userContextsArray) {
       userContexts.push(userContextJson.userContext)
     }
@@ -96,9 +96,8 @@ class Browser {
       method: 'browser.getClientWindows',
       params: {},
     }
-    const response = await this.bidi.send(command)
-    const clientWindows = (response.result as { clientWindows: ClientWindowInfoParams[] }).clientWindows
-    return clientWindows.map((window) => ClientWindowInfo.fromJson(window))
+    const response = await this.bidi.send<{ clientWindows: ClientWindowInfoParams[] }>(command)
+    return response.result.clientWindows.map((window) => ClientWindowInfo.fromJson(window))
   }
 }
 

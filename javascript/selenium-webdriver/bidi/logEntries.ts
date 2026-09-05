@@ -144,6 +144,12 @@ export class ConsoleLogEntry extends GenericLogEntry {
   }
 }
 
+/** Any log entry a log inspector reports. */
+export type LogEntry = ConsoleLogEntry | JavascriptLogEntry | GenericLogEntry
+
+/** A subscribed log handler. */
+export type LogCallback = (entry: LogEntry) => void
+
 /**
  * Represents a log entry for JavaScript logs.
  * @extends GenericLogEntry
