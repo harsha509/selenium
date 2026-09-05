@@ -15,21 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { register } = require('./registry')
+import { register } from './registry'
+
+export interface EnumEntry<T extends string> {
+  readonly kind: 'enum'
+  readonly values: readonly T[]
+  includes(value: unknown): value is T
+}
 
 /**
  * Registers a schema `enum` — a closed set of string values a field may hold.
- * @param {string} name Schema type name, e.g. 'network.InterceptPhase'.
- * @param {string[]} values The enum's valid values.
- * @returns {{kind: 'enum', values: string[], includes: function(unknown): boolean}}
- *   The registered entry, used by validateValue() to check a ref'd value's
+ * @param name Schema type name, e.g. 'network.InterceptPhase'.
+ * @param values The enum's valid values.
+ * @returns The registered entry, used by validateValue() to check a ref'd value's
  *   membership; also returned so a generator can build a discoverable constant from it.
  */
-function defineEnum(name, values) {
-  const allowed = new Set(values)
-  const entry = { kind: 'enum', values, includes: (value) => allowed.has(value) }
+export function defineEnum<T extends string>(name: string, values: readonly T[]): EnumEntry<T> {
+  const allowed = new Set<string>(values)
+  const entry: EnumEntry<T> = {
+    kind: 'enum',
+    values,
+    includes: (value: unknown): value is T => typeof value === 'string' && allowed.has(value),
+  }
   register(name, entry)
   return entry
 }
-
-module.exports = { defineEnum }

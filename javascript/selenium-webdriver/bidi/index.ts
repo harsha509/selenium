@@ -15,31 +15,68 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { EventEmitter } = require('node:events')
-const WebSocket = require('ws')
+import { EventEmitter } from 'node:events'
+import WebSocket from 'ws'
+import type { BidiCommand, BidiResponse, BidiTransport, Subscription } from './domain'
+import { isObject } from '../lib/util'
 
 const RESPONSE_TIMEOUT = 1000 * 30
 
-class Index extends EventEmitter {
+/** One in-flight send(): settled by the matching response, a timeout, or disconnect. */
+interface PendingEntry {
+  resolve: (payload: BidiResponse) => void
+  reject: (error: Error) => void
+  timeoutId: NodeJS.Timeout
+}
+
+/** One caller parked in waitForConnection(). */
+interface ConnectWaiter {
+  resolve: () => void
+  reject: (error: Error) => void
+}
+
+/** One addCallback() registration, keyed by its server-assigned subscription id. */
+interface CallbackEntry {
+  method: string
+  handler: (params: unknown) => void
+  removing?: Promise<void>
+}
+
+/** Parameters for session.subscribe / session.unsubscribe. */
+interface SubscriptionParams {
+  events?: string[]
+  contexts?: string[]
+}
+
+function isBidiResponse(payload: unknown): payload is BidiResponse {
+  return isObject(payload) && typeof payload.id === 'number'
+}
+
+function isBidiEvent(payload: unknown): payload is { method: string; params: unknown } {
+  return isObject(payload) && typeof payload.method === 'string'
+}
+
+class Index extends EventEmitter implements BidiTransport {
   id = 0
   connected = false
-  events = []
-  browsingContexts = []
+  events: string[] = []
+  browsingContexts: string[] = []
+  private _closed = false
+  private readonly _pending = new Map<number, PendingEntry>()
+  private readonly _connectWaiters = new Set<ConnectWaiter>()
+  // removeCallback(id) only receives the subscriptionId — off() needs the event
+  // name and the exact handler function too, so this holds what it needs to
+  // detach the right listener without the caller having to keep them around.
+  private readonly _callbacks = new Map<string, CallbackEntry>()
+  private readonly _ws: WebSocket
 
   /**
    * Create a new websocket connection
    * @param _webSocketUrl
    */
-  constructor(_webSocketUrl) {
+  constructor(_webSocketUrl: string) {
     super()
     this.connected = false
-    this._closed = false
-    this._pending = new Map()
-    this._connectWaiters = new Set()
-    // removeCallback(id) only receives the subscriptionId — off() needs the event
-    // name and the exact handler function too, so this holds what it needs to
-    // detach the right listener without the caller having to keep them around.
-    this._callbacks = new Map()
     this._ws = new WebSocket(_webSocketUrl)
     this._ws.on('open', () => {
       // The handshake can complete after close()/_failPending() has already
@@ -69,13 +106,14 @@ class Index extends EventEmitter {
       if (this._closed) {
         return
       }
-      let payload
+      let payload: unknown
       try {
         payload = JSON.parse(data.toString())
       } catch (err) {
         // Surface protocol parse failures rather than silently dropping —
         // otherwise callers see misleading send() timeouts.
-        this._emitOrWarn(new Error(`Failed to parse BiDi message: ${err.message}`), 'BiDiProtocolWarning')
+        const message = err instanceof Error ? err.message : String(err)
+        this._emitOrWarn(new Error(`Failed to parse BiDi message: ${message}`), 'BiDiProtocolWarning')
         return
       }
       // Messages without a numeric id are BiDi events, not command responses.
@@ -86,8 +124,8 @@ class Index extends EventEmitter {
       // modules (logInspector, network, etc.) continue to use their own
       // ws.on('message', ...) listeners unchanged — this emission is purely
       // additive and does not affect those code paths.
-      if (payload == null || typeof payload.id !== 'number') {
-        if (payload != null && typeof payload.method === 'string') {
+      if (!isBidiResponse(payload)) {
+        if (isBidiEvent(payload)) {
           // 'error' is a reserved EventEmitter event — emitting it without a
           // listener throws and crashes the process. Route any peer-supplied
           // method named 'error' through the same guarded path used for JSON
@@ -143,10 +181,9 @@ class Index extends EventEmitter {
   /**
    * Reject any in-flight sends and mark the connection failed. Idempotent so
    * that close() and the underlying 'close'/'error' events do not double-reject.
-   * @param {Error} error
-   * @private
+   * @param error
    */
-  _failPending(error) {
+  private _failPending(error: Error): void {
     if (this._closed) {
       return
     }
@@ -180,11 +217,10 @@ class Index extends EventEmitter {
    * crash the process. Also guards against the 'error' listener itself
    * throwing, so a broken listener can't cause the exact kind of crash this
    * helper exists to prevent, just one level removed.
-   * @param {Error} err
-   * @param {string} warningType
-   * @private
+   * @param err
+   * @param warningType
    */
-  _emitOrWarn(err, warningType) {
+  private _emitOrWarn(err: Error, warningType: string): void {
     if (this.listenerCount('error') === 0) {
       process.emitWarning(err.message, warningType)
       return
@@ -197,25 +233,18 @@ class Index extends EventEmitter {
     }
   }
 
-  /**
-   * @returns {WebSocket}
-   */
-  get socket() {
+  get socket(): WebSocket {
     return this._ws
   }
 
-  /**
-   * @returns {boolean|*}
-   */
-  get isConnected() {
+  get isConnected(): boolean {
     return this.connected
   }
 
   /**
    * Get Bidi Status
-   * @returns {Promise<*>}
    */
-  get status() {
+  get status(): Promise<BidiResponse> {
     return this.send({
       method: 'session.status',
       params: {},
@@ -224,9 +253,8 @@ class Index extends EventEmitter {
 
   /**
    * Resolve connection
-   * @returns {Promise<unknown>}
    */
-  async waitForConnection() {
+  async waitForConnection(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this._closed) {
         reject(new Error('BiDi connection is closed'))
@@ -246,9 +274,8 @@ class Index extends EventEmitter {
   /**
    * Sends a bidi request
    * @param params
-   * @returns {Promise<unknown>}
    */
-  async send(params) {
+  async send(params: BidiCommand): Promise<BidiResponse> {
     if (this._closed) {
       throw new Error('BiDi connection is closed')
     }
@@ -290,10 +317,9 @@ class Index extends EventEmitter {
    * addCallback/removeCallback, this method (and unsubscribe) can be removed.
    * @param events
    * @param browsingContexts
-   * @returns {Promise<void>}
    */
-  async subscribe(events, browsingContexts) {
-    function toArray(arg) {
+  async subscribe(events?: string | string[], browsingContexts?: string | string[]): Promise<void> {
+    function toArray(arg: string | string[] | undefined): string[] {
       if (arg === undefined) {
         return []
       }
@@ -304,7 +330,7 @@ class Index extends EventEmitter {
     const eventsArray = toArray(events)
     const contextsArray = toArray(browsingContexts)
 
-    const params = {
+    const params: { method: string; params: SubscriptionParams } = {
       method: 'session.subscribe',
       params: {},
     }
@@ -337,9 +363,8 @@ class Index extends EventEmitter {
    * the returned handle's `unsubscribe()` from {@link addCallback} instead.
    * @param events
    * @param browsingContexts
-   * @returns {Promise<void>}
    */
-  async unsubscribe(events, browsingContexts) {
+  async unsubscribe(events: string | string[], browsingContexts?: string | string[]): Promise<void> {
     const eventsToRemove = typeof events === 'string' ? [events] : events
 
     // Check if the eventsToRemove are in the subscribed events array
@@ -358,7 +383,7 @@ class Index extends EventEmitter {
     if (existingEvents.length === 0) {
       return
     }
-    const params = {
+    const params: { method: string; params: SubscriptionParams } = {
       method: 'session.unsubscribe',
       params: {
         events: existingEvents,
@@ -394,11 +419,10 @@ class Index extends EventEmitter {
    * If the subscribe call then fails (or returns no usable id), the listener
    * is removed again before the error propagates, so a failed subscription
    * doesn't leak one.
-   * @param {string} method
-   * @param {function(unknown): void} handler
-   * @returns {Promise<{id: string, unsubscribe: function(): Promise<void>}>}
+   * @param method
+   * @param handler
    */
-  async addCallback(method, handler) {
+  async addCallback(method: string, handler: (params: unknown) => void): Promise<Subscription> {
     this.on(method, handler)
 
     try {
@@ -413,7 +437,8 @@ class Index extends EventEmitter {
       if (response?.error !== undefined) {
         throw new Error(`${response.error}: ${response.message}`)
       }
-      const subscriptionId = response?.result?.subscription
+      const result = response?.result
+      const subscriptionId = isObject(result) ? result.subscription : undefined
       if (typeof subscriptionId !== 'string' || subscriptionId === '') {
         throw new Error(`session.subscribe did not return a valid subscription id: ${JSON.stringify(response)}`)
       }
@@ -455,10 +480,9 @@ class Index extends EventEmitter {
    * The in-flight marker is cleared once the attempt settles, either way, so
    * a later retry after a failure starts a fresh attempt rather than reusing
    * a rejected one.
-   * @param {string} subscriptionId
-   * @returns {Promise<void>}
+   * @param subscriptionId
    */
-  async removeCallback(subscriptionId) {
+  async removeCallback(subscriptionId: string): Promise<void> {
     const entry = this._callbacks.get(subscriptionId)
     if (entry === undefined) {
       return
@@ -485,12 +509,11 @@ class Index extends EventEmitter {
 
   /**
    * Close ws connection.
-   * @returns {Promise<unknown>}
    */
-  close() {
+  close(): Promise<void> {
     this._failPending(new Error('BiDi connection closed before response was received'))
 
-    const closeWebSocket = (callback) => {
+    const closeWebSocket = (callback: () => void) => {
       // don't close if it's already closed
       if (this._ws.readyState === 3) {
         callback()
@@ -504,14 +527,10 @@ class Index extends EventEmitter {
         this._ws.close()
       }
     }
-    return new Promise((fulfill, _) => {
+    return new Promise((fulfill) => {
       closeWebSocket(fulfill)
     })
   }
 }
 
-/**
- * API
- * @type {function(*): Promise<Index>}
- */
-module.exports = Index
+export = Index

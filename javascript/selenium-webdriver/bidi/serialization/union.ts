@@ -15,17 +15,58 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { register, resolve } = require('./registry')
-const { ValidationError } = require('./record')
+import { register, resolve } from './registry'
+import { ValidationError } from './record'
+
+/** One arm of a discriminated union: `data[by] === value` selects `ref`. */
+export interface DiscriminatedVariant {
+  value: unknown
+  ref: string
+}
+
+/** One arm of a structural union: all `requires` keys present selects `ref`. */
+export interface OrderedVariant {
+  ref: string
+  requires: string[]
+}
+
+/** The schema's `selector` node for a union; a correlated union has neither shape. */
+export type UnionSelector =
+  | { by: string; variants: DiscriminatedVariant[]; default?: string; ordered?: undefined }
+  | { ordered: OrderedVariant[]; by?: undefined }
+  | { by?: undefined; ordered?: undefined }
+
+export interface UnionOptions {
+  objectOnly?: boolean
+}
+
+/** The typed surface of a registered union; `T` is the caller's declared variant shape. */
+export interface UnionClass<T> {
+  build(data: unknown): Readonly<T>
+  fromWire(payload: unknown): Readonly<T>
+}
+
+/** The untyped runtime shape of a registered union, as stored in the registry. */
+export interface UnionEntry {
+  kind: 'union'
+  build(data: unknown): object
+  fromWire(payload: unknown): object
+}
+
+/** Own-key test over any value; non-objects are boxed so primitives never throw. */
+function hasKey(data: unknown, key: string): boolean {
+  return data !== null && data !== undefined && Object.hasOwn(Object(data), key)
+}
 
 // Resolves the variant ref a value/payload matches, per the schema's selector shape:
 //   { by, variants: [{value, ref}], default? } - discriminated: match `data[by]` against
 //     each variant's value.
 //   { ordered: [{ref, requires}] }              - structural: first variant whose `requires`
 //     keys are all present in `data`, in spec order.
-function selectVariant(selector, data, hasKey) {
+function selectVariant(selector: UnionSelector, data: unknown): string | undefined {
   if (selector.by) {
-    const tag = hasKey(data, selector.by) ? data[selector.by] : undefined
+    const by = selector.by
+    const tag: unknown = hasKey(data, by) ? Reflect.get(Object(data), by) : undefined
     const match = selector.variants.find((v) => v.value === tag)
     if (match) return match.ref
     return selector.default
@@ -42,17 +83,16 @@ function selectVariant(selector, data, hasKey) {
 /**
  * Registers a schema `union` — a value that may be any one of several variant
  * record types, resolved by a discriminator field or by structural shape.
- * @param {string} name Schema type name, e.g. 'session.ProxyConfiguration'.
- * @param {object} selector The schema's `selector` node for this union.
- * @param {{objectOnly?: boolean}} [options]
- * @returns {{build: function(unknown): object, fromWire: function(unknown): object}}
- *   The registered union — `build(data)` resolves and constructs the matching
+ * @param name Schema type name, e.g. 'session.ProxyConfiguration'.
+ * @param selector The schema's `selector` node for this union.
+ * @param options
+ * @returns The registered union — `build(data)` resolves and constructs the matching
  *   variant outbound, `fromWire(payload)` resolves and parses it inbound.
  */
-function defineUnion(name, selector, options = {}) {
+export function defineUnion<T>(name: string, selector: UnionSelector, options: UnionOptions = {}): UnionClass<T> {
   const { objectOnly = false } = options
 
-  const union = {
+  const union: UnionEntry = {
     kind: 'union',
 
     // Outbound: resolve which variant `data` describes, then delegate to that
@@ -61,42 +101,47 @@ function defineUnion(name, selector, options = {}) {
     // LocalValue's untyped RemoteReference arm (see unionSelector() in
     // project_bidi_schema.mjs) — so recurse through that union's own dispatch
     // rather than assuming every resolved ref is a record.
-    build(data) {
+    build(data: unknown): object {
       if (objectOnly && (typeof data !== 'object' || data === null || Array.isArray(data))) {
         throw new ValidationError(`${name}: expected an object`)
       }
-      const ref = selectVariant(selector, data, (d, key) => Object.hasOwn(d, key))
+      const ref = selectVariant(selector, data)
       if (ref === undefined) {
         throw new ValidationError(`${name}: value does not match any known variant`)
       }
       const variant = resolve(ref)
-      if (variant.kind === 'union') {
+      if (variant?.kind === 'union') {
         return variant.build(data)
       }
-      return new variant.RecordClass(data)
+      if (variant?.kind === 'record') {
+        return new variant.RecordClass(data)
+      }
+      throw new ValidationError(`${name}: variant "${ref}" is not a registered record or union`)
     },
 
     // Inbound: resolve which variant `payload` matches. An unresolvable payload is a
     // closed-vocabulary miss — always an error, never a warning, since there is no
     // valid typed object to fall back to. Same nested-union case as build() above.
-    fromWire(payload) {
+    fromWire(payload: unknown): object {
       if (objectOnly && (typeof payload !== 'object' || payload === null || Array.isArray(payload))) {
         throw new ValidationError(`${name}: expected an object on the wire, got ${typeof payload}`)
       }
-      const ref = selectVariant(selector, payload, (d, key) => Object.hasOwn(d, key))
+      const ref = selectVariant(selector, payload)
       if (ref === undefined) {
         throw new ValidationError(`${name}: received a variant not in this binding's BiDi schema`)
       }
       const variant = resolve(ref)
-      if (variant.kind === 'union') {
+      if (variant?.kind === 'union') {
         return variant.fromWire(payload)
       }
-      return variant.RecordClass.fromWire(payload)
+      if (variant?.kind === 'record') {
+        return variant.RecordClass.fromWire(payload)
+      }
+      throw new ValidationError(`${name}: variant "${ref}" is not a registered record or union`)
     },
   }
 
   register(name, union)
-  return union
+  // The runtime union is untyped; T is the caller's declared variant shape, as in Closure's @template.
+  return union as unknown as UnionClass<T>
 }
-
-module.exports = { defineUnion }
