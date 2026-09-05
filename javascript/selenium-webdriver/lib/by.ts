@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * @fileoverview Factory methods for the supported locator strategies.
  */
@@ -31,18 +29,34 @@
  * Care should be taken when using JavaScript minifiers (such as the
  * Closure compiler), as locator hashes will always be parsed using
  * the un-obfuscated properties listed.
- *
- * @typedef {(
- *     {className: string}|
- *     {css: string}|
- *     {id: string}|
- *     {js: string}|
- *     {linkText: string}|
- *     {name: string}|
- *     {partialLinkText: string}|
- *     {tagName: string}|
- *     {xpath: string})} ByHash
  */
+export type ByHash =
+  | { className: string }
+  | { css: string }
+  | { id: string }
+  | { js: string }
+  | { linkText: string }
+  | { name: string }
+  | { partialLinkText: string }
+  | { tagName: string }
+  | { xpath: string }
+
+/** A script body or function accepted by {@link By.js}. */
+export type ScriptSource = string | ((...args: never[]) => unknown)
+
+/** The subset of a WebDriver needed to evaluate a {@link LocatorFunction}. */
+export interface ScriptExecutor {
+  executeScript(script: ScriptSource, ...args: unknown[]): Promise<unknown>
+}
+
+/** A JavaScript-based locator function, as returned by {@link By.js}. */
+export type LocatorFunction = (driver: ScriptExecutor) => Promise<unknown>
+
+/** A serialised locator: `{using: value}`, or `{using, value}` in wire form. */
+export type LocatorDefinition = Record<string, unknown>
+
+/** Anything accepted by {@link checkedLocator}. */
+export type Locator = By | RelativeBy | LocatorFunction | ByHash | { using: string; value: string }
 
 /**
  * Error thrown if an invalid character is encountered while escaping a CSS
@@ -58,13 +72,13 @@ class InvalidCharacterError extends Error {
 
 /**
  * Escapes a CSS string.
- * @param {string} css the string to escape.
- * @return {string} the escaped string.
+ * @param css the string to escape.
+ * @return the escaped string.
  * @throws {TypeError} if the input value is not a string.
  * @throws {InvalidCharacterError} if the string contains an invalid character.
  * @see https://drafts.csswg.org/cssom/#serialize-an-identifier
  */
-function escapeCss(css) {
+export function escapeCss(css: string): string {
   if (typeof css !== 'string') {
     throw new TypeError('input must be a string')
   }
@@ -113,29 +127,26 @@ function escapeCss(css) {
  * Describes a mechanism for locating an element on the page.
  * @final
  */
-class By {
+export class By {
   /**
-   * @param {string} using the name of the location strategy to use.
-   * @param {string} value the value to search for.
+   * @param using the name of the location strategy to use.
+   * @param value the value to search for.
    */
-  constructor(using, value) {
-    /** @type {string} */
-    this.using = using
-
-    /** @type {string} */
-    this.value = value
-  }
+  constructor(
+    public using: string,
+    public value: string,
+  ) {}
 
   /**
    * Locates elements that have a specific class name.
    *
-   * @param {string} name The class name to search for.
-   * @return {!By} The new locator.
+   * @param name The class name to search for.
+   * @return The new locator.
    * @see http://www.w3.org/TR/2011/WD-html5-20110525/elements.html#classes
    * @see http://www.w3.org/TR/CSS2/selector.html#class-html
    */
-  static className(name) {
-    let names = name
+  static className(name: string): By {
+    const names = name
       .split(/\s+/g)
       .filter((s) => s.length > 0)
       .map((s) => escapeCss(s))
@@ -145,11 +156,11 @@ class By {
   /**
    * Locates elements using a CSS selector.
    *
-   * @param {string} selector The CSS selector to use.
-   * @return {!By} The new locator.
+   * @param selector The CSS selector to use.
+   * @return The new locator.
    * @see http://www.w3.org/TR/CSS2/selector.html
    */
-  static css(selector) {
+  static css(selector: string): By {
     return new By('css selector', selector)
   }
 
@@ -157,10 +168,10 @@ class By {
    * Locates elements by the ID attribute. This locator uses the CSS selector
    * `*[id="$ID"]`, _not_ `document.getElementById`.
    *
-   * @param {string} id The ID to search for.
-   * @return {!By} The new locator.
+   * @param id The ID to search for.
+   * @return The new locator.
    */
-  static id(id) {
+  static id(id: string): By {
     return By.css('*[id="' + escapeCss(id) + '"]')
   }
 
@@ -169,10 +180,10 @@ class By {
    * {@linkplain webdriver.WebElement#getText visible text} matches the given
    * string.
    *
-   * @param {string} text The link text to search for.
-   * @return {!By} The new locator.
+   * @param text The link text to search for.
+   * @return The new locator.
    */
-  static linkText(text) {
+  static linkText(text: string): By {
     return new By('link text', text)
   }
 
@@ -184,13 +195,12 @@ class By {
    * one is expected, the first element in this list will be used as the
    * single element value.
    *
-   * @param {!(string|Function)} script The script to execute.
-   * @param {...*} var_args The arguments to pass to the script.
-   * @return {function(!./webdriver.WebDriver): !Promise}
-   *     A new JavaScript-based locator function.
+   * @param script The script to execute.
+   * @param var_args The arguments to pass to the script.
+   * @return A new JavaScript-based locator function.
    */
-  static js(script, ...var_args) {
-    return function (driver) {
+  static js(script: ScriptSource, ...var_args: unknown[]): LocatorFunction {
+    return function (driver: ScriptExecutor): Promise<unknown> {
       return driver.executeScript.call(driver, script, ...var_args)
     }
   }
@@ -198,10 +208,10 @@ class By {
   /**
    * Locates elements whose `name` attribute has the given value.
    *
-   * @param {string} name The name attribute to search for.
-   * @return {!By} The new locator.
+   * @param name The name attribute to search for.
+   * @return The new locator.
    */
-  static name(name) {
+  static name(name: string): By {
     return By.css('*[name="' + escapeCss(name) + '"]')
   }
 
@@ -210,20 +220,20 @@ class By {
    * {@linkplain webdriver.WebElement#getText visible text} contains the given
    * substring.
    *
-   * @param {string} text The substring to check for in a link's visible text.
-   * @return {!By} The new locator.
+   * @param text The substring to check for in a link's visible text.
+   * @return The new locator.
    */
-  static partialLinkText(text) {
+  static partialLinkText(text: string): By {
     return new By('partial link text', text)
   }
 
   /**
    * Locates elements with a given tag name.
    *
-   * @param {string} name The tag name to search for.
-   * @return {!By} The new locator.
+   * @param name The tag name to search for.
+   * @return The new locator.
    */
-  static tagName(name) {
+  static tagName(name: string): By {
     return new By('tag name', name)
   }
 
@@ -234,26 +244,29 @@ class By {
    * given the selector `//div`, WebDriver will search from the document root
    * regardless of whether the locator was used with a WebElement.
    *
-   * @param {string} xpath The XPath selector to use.
-   * @return {!By} The new locator.
+   * @param xpath The XPath selector to use.
+   * @return The new locator.
    * @see http://www.w3.org/TR/xpath/
    */
-  static xpath(xpath) {
+  static xpath(xpath: string): By {
     return new By('xpath', xpath)
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     // The static By.name() overrides this.constructor.name.  Shame...
     return `By(${this.using}, ${this.value})`
   }
 
-  toObject() {
-    const tmp = {}
+  toObject(): LocatorDefinition {
+    const tmp: LocatorDefinition = {}
     tmp[this.using] = this.value
     return tmp
   }
 }
+
+/** A {@link By} or an already-serialised locator or element reference. */
+export type LocatorOrElement = By | object
 
 /**
  * Start Searching for relative objects using the value returned from
@@ -261,24 +274,24 @@ class By {
  *
  * Note: this method will likely be removed in the future please use
  * `locateWith`.
- * @param {By} tagName The value returned from calling By.tagName()
+ * @param tagName The value returned from calling By.tagName()
  * @returns
  */
-function withTagName(tagName) {
+export function withTagName(tagName: By): RelativeBy {
   return new RelativeBy({ 'css selector': tagName })
 }
 
 /**
  * Start searching for relative objects using search criteria with By.
- * @param {string} by A By map that shows how to find the initial element
+ * @param by A By map that shows how to find the initial element
  * @returns {RelativeBy}
  */
-function locateWith(by) {
+export function locateWith(by: LocatorOrElement): RelativeBy {
   return new RelativeBy(getLocator(by))
 }
 
-function getLocator(locatorOrElement) {
-  let toFind
+function getLocator(locatorOrElement: LocatorOrElement): object {
+  let toFind: object
   if (locatorOrElement instanceof By) {
     toFind = locatorOrElement.toObject()
   } else {
@@ -287,27 +300,36 @@ function getLocator(locatorOrElement) {
   return toFind
 }
 
+/** One relative-location constraint, e.g. `{kind: 'above', args: [locator]}`. */
+export interface RelativeFilter {
+  kind: string
+  args: object[]
+}
+
 /**
  * Describes a mechanism for locating an element relative to others
  * on the page.
  * @final
  */
-class RelativeBy {
+export class RelativeBy {
+  root: object
+  filters: RelativeFilter[]
+
   /**
-   * @param {By} findDetails
-   * @param {Array<Object>} filters
+   * @param findDetails
+   * @param filters
    */
-  constructor(findDetails, filters = null) {
+  constructor(findDetails: object, filters: RelativeFilter[] | null = null) {
     this.root = findDetails
     this.filters = filters || []
   }
 
   /**
    * Look for elements above the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  above(locatorOrElement) {
+  above(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'above',
       args: [getLocator(locatorOrElement)],
@@ -317,10 +339,10 @@ class RelativeBy {
 
   /**
    * Look for elements below the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  below(locatorOrElement) {
+  below(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'below',
       args: [getLocator(locatorOrElement)],
@@ -330,10 +352,10 @@ class RelativeBy {
 
   /**
    * Look for elements left the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  toLeftOf(locatorOrElement) {
+  toLeftOf(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'left',
       args: [getLocator(locatorOrElement)],
@@ -343,10 +365,10 @@ class RelativeBy {
 
   /**
    * Look for elements right the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  toRightOf(locatorOrElement) {
+  toRightOf(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'right',
       args: [getLocator(locatorOrElement)],
@@ -356,10 +378,10 @@ class RelativeBy {
 
   /**
    * Look for elements above the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  straightAbove(locatorOrElement) {
+  straightAbove(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'straightAbove',
       args: [getLocator(locatorOrElement)],
@@ -369,10 +391,10 @@ class RelativeBy {
 
   /**
    * Look for elements below the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  straightBelow(locatorOrElement) {
+  straightBelow(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'straightBelow',
       args: [getLocator(locatorOrElement)],
@@ -382,10 +404,10 @@ class RelativeBy {
 
   /**
    * Look for elements left the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  straightToLeftOf(locatorOrElement) {
+  straightToLeftOf(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'straightLeft',
       args: [getLocator(locatorOrElement)],
@@ -395,10 +417,10 @@ class RelativeBy {
 
   /**
    * Look for elements right the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  straightToRightOf(locatorOrElement) {
+  straightToRightOf(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'straightRight',
       args: [getLocator(locatorOrElement)],
@@ -408,10 +430,10 @@ class RelativeBy {
 
   /**
    * Look for elements near the root element passed in
-   * @param {string|WebElement} locatorOrElement
-   * @return {!RelativeBy} Return this object
+   * @param locatorOrElement
+   * @return Return this object
    */
-  near(locatorOrElement) {
+  near(locatorOrElement: LocatorOrElement): this {
     this.filters.push({
       kind: 'near',
       args: [getLocator(locatorOrElement)],
@@ -421,10 +443,10 @@ class RelativeBy {
 
   /**
    * Returns a marshalled version of the {@link RelativeBy}
-   * @return {!Object} Object representation of a {@link WebElement}
+   * @return Object representation of a {@link WebElement}
    *     that will be used in {@link #findElements}.
    */
-  marshall() {
+  marshall(): { relative: { root: object; filters: RelativeFilter[] } } {
     return {
       relative: {
         root: this.root,
@@ -434,48 +456,62 @@ class RelativeBy {
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     // The static By.name() overrides this.constructor.name.  Shame...
     return `RelativeBy(${JSON.stringify(this.marshall())})`
   }
 }
 
+/** The {@link By} factory for each {@link ByHash} key. */
+const HASH_STRATEGIES: Record<string, ((value: string) => By | LocatorFunction) | undefined> = {
+  className: By.className,
+  css: By.css,
+  id: By.id,
+  js: By.js,
+  linkText: By.linkText,
+  name: By.name,
+  partialLinkText: By.partialLinkText,
+  tagName: By.tagName,
+  xpath: By.xpath,
+}
+
+function isLocatorFunction(locator: Locator): locator is LocatorFunction {
+  return typeof locator === 'function'
+}
+
 /**
  * Checks if a value is a valid locator.
- * @param {!(By|Function|ByHash)} locator The value to check.
- * @return {!(By|Function)} The valid locator.
+ * @param locator The value to check.
+ * @return The valid locator.
  * @throws {TypeError} If the given value does not define a valid locator
  *     strategy.
  */
-function check(locator) {
-  if (locator instanceof By || locator instanceof RelativeBy || typeof locator === 'function') {
+function check(locator: Locator): By | RelativeBy | LocatorFunction {
+  if (locator instanceof By || locator instanceof RelativeBy) {
+    return locator
+  }
+  if (isLocatorFunction(locator)) {
     return locator
   }
 
   if (
     locator &&
     typeof locator === 'object' &&
+    'using' in locator &&
     typeof locator.using === 'string' &&
+    'value' in locator &&
     typeof locator.value === 'string'
   ) {
     return new By(locator.using, locator.value)
   }
 
-  for (let key in locator) {
-    if (Object.prototype.hasOwnProperty.call(locator, key) && Object.prototype.hasOwnProperty.call(By, key)) {
-      return By[key](locator[key])
+  for (const [key, value] of Object.entries(locator)) {
+    const strategy = HASH_STRATEGIES[key]
+    if (strategy && typeof value === 'string') {
+      return strategy(value)
     }
   }
   throw new TypeError('Invalid locator')
 }
 
-// PUBLIC API
-
-module.exports = {
-  By,
-  RelativeBy,
-  withTagName,
-  locateWith,
-  escapeCss,
-  checkedLocator: check,
-}
+export { check as checkedLocator }

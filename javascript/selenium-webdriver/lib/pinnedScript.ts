@@ -15,45 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const crypto = require('node:crypto')
+import { randomUUID } from 'node:crypto'
 
-class PinnedScript {
-  constructor(script) {
+export class PinnedScript {
+  private readonly scriptSource_: string
+  private readonly scriptHandle_: string
+  private scriptId_?: string
+
+  constructor(script: string) {
     this.scriptSource_ = script
-    this.scriptHandle_ = crypto.randomUUID().replace(/-/gi, '')
+    this.scriptHandle_ = randomUUID().replace(/-/gi, '')
   }
 
-  get handle() {
+  get handle(): string {
     return this.scriptHandle_
   }
 
-  get source() {
+  get source(): string {
     return this.scriptSource_
   }
 
-  get scriptId() {
+  get scriptId(): string | undefined {
     return this.scriptId_
   }
 
-  set scriptId(id) {
+  set scriptId(id: string | undefined) {
     this.scriptId_ = id
   }
 
-  creationScript() {
+  creationScript(): string {
     return `function __webdriver_${this.scriptHandle_}(arguments) { ${this.scriptSource_} }`
   }
 
-  executionScript() {
+  executionScript(): string {
     return `return __webdriver_${this.scriptHandle_}(arguments)`
   }
 
-  removalScript() {
+  removalScript(): string {
     return `__webdriver_${this.scriptHandle_} = undefined`
   }
-}
-
-// PUBLIC API
-
-module.exports = {
-  PinnedScript,
 }
