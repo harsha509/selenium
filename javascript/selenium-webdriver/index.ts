@@ -190,7 +190,7 @@ function createDriver(ctor: DriverClass, ...args: unknown[]): ThenableWebDriver 
  */
 class Builder {
   private readonly log_: logging.Logger
-  private url_: string
+  private url_: string | Promise<string>
   private proxy_: string | null
   private capabilities_: capabilities.Capabilities
   private chromeOptions_: chrome.Options | null
@@ -243,10 +243,10 @@ class Builder {
    * As an alternative to this method, you may also set the
    * `SELENIUM_REMOTE_URL` environment variable.
    *
-   * @param url The URL of a remote server to use.
+   * @param url The URL of a remote server to use, or a promise for one.
    * @return A self reference.
    */
-  usingServer(url: string): this {
+  usingServer(url: string | Promise<string>): this {
     this.url_ = url
     return this
   }
@@ -254,7 +254,7 @@ class Builder {
   /**
    * @return The URL of the WebDriver server this instance is configured to use.
    */
-  getServerUrl(): string {
+  getServerUrl(): string | Promise<string> {
     return this.url_
   }
 

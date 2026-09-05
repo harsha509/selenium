@@ -30,72 +30,73 @@
  *     function maybe() { return Math.random() < 0.5; }
  */
 
-'use strict'
+import * as fs from 'node:fs'
+import { createRequire } from 'node:module'
+import * as path from 'node:path'
+import type { Runfiles } from '@bazel/runfiles'
+import * as chrome from '../chrome'
+import * as edge from '../edge'
+import * as firefox from '../firefox'
+import * as ie from '../ie'
+import * as remote from '../remote/index'
+import * as safari from '../safari'
+import { Browser } from '../lib/capabilities'
+import type { CapabilitiesLike } from '../lib/capabilities'
+import type { BinaryPaths } from '../common/seleniumManager'
+import { Builder } from '../index'
+import { getBinaryPaths } from '../common/driverFinder'
 
-const fs = require('node:fs')
-const path = require('node:path')
-const { isatty } = require('node:tty')
-const chrome = require('../chrome')
-const edge = require('../edge')
-const firefox = require('../firefox')
-const ie = require('../ie')
-const remote = require('../remote')
-const safari = require('../safari')
-const { Browser } = require('../lib/capabilities')
-const { Builder } = require('../index')
-const { getBinaryPaths } = require('../common/driverFinder')
+/** Test-runner globals (mocha or jasmine) this module relies on at runtime. */
+declare function describe(title: string, fn: () => void): void
+declare function after(fn: () => unknown): void
 
-let runfiles
+let runfiles: Runfiles | undefined
 try {
   // Attempt to require @bazel/runfiles
-  runfiles = require('@bazel/runfiles').runfiles
+  const bazelRunfiles: { runfiles: Runfiles } = createRequire(__filename)('@bazel/runfiles')
+  runfiles = bazelRunfiles.runfiles
 } catch {
   // Fall through
 }
 
 /**
  * Describes a browser targeted by a {@linkplain suite test suite}.
- * @record
  */
-function TargetBrowser() {}
-
-/**
- * The {@linkplain Browser name} of the targeted browser.
- * @type {string}
- */
-TargetBrowser.prototype.name
-
-/**
- * The specific version of the targeted browser, if any.
- * @type {(string|undefined)}
- */
-TargetBrowser.prototype.version
-
-/**
- * The specific {@linkplain ../lib/capabilities.Platform platform} for the
- * targeted browser, if any.
- * @type {(string|undefined)}.
- */
-TargetBrowser.prototype.platform
-
-/** @suppress {checkTypes} */
-function color(c, s) {
-  return isatty(process.stdout) ? `\u001b[${c}m${s}\u001b[0m` : s
+export interface TargetBrowser {
+  /** The {@linkplain Browser name} of the targeted browser. */
+  name: string
+  /** The specific version of the targeted browser, if any. */
+  version?: string
+  /** The specific {@linkplain ../lib/capabilities.Platform platform} for the targeted browser, if any. */
+  platform?: string
+  /** Extra capabilities to merge into every session for this browser. */
+  capabilities?: CapabilitiesLike
 }
 
-function green(s) {
+/** A `describe`/`it`-style test function, optionally carrying an `.only` variant. */
+type TestHook = ((...args: unknown[]) => unknown) & { only?: TestHook }
+
+function isTestHook(fn: unknown): fn is TestHook {
+  return typeof fn === 'function'
+}
+
+function color(c: number, s: string): string {
+  return process.stdout.isTTY ? `\u001b[${c}m${s}\u001b[0m` : s
+}
+
+function green(s: string): string {
   return color(32, s)
 }
 
-function cyan(s) {
+function cyan(s: string): string {
   return color(36, s)
 }
 
-function info(msg) {
+function info(msg: string): void {
   console.info(`${green('[INFO]')} ${msg}`)
 }
 
-function warn(msg) {
+function warn(msg: string): void {
   console.warn(`${cyan('[WARNING]')} ${msg}`)
 }
 
@@ -103,10 +104,10 @@ function warn(msg) {
  * Extracts the browsers for a test suite to target from the `SELENIUM_BROWSER`
  * environment variable.
  *
- * @return {{name: string, version: string, platform: string}}[] the browsers to target.
+ * @return the browsers to target.
  */
-function getBrowsersToTestFromEnv() {
-  let browsers = process.env['SELENIUM_BROWSER']
+function getBrowsersToTestFromEnv(): TargetBrowser[] {
+  const browsers = process.env['SELENIUM_BROWSER']
   if (!browsers) {
     return []
   }
@@ -118,20 +119,19 @@ function getBrowsersToTestFromEnv() {
     } else if (name === 'edge') {
       name = Browser.EDGE
     }
-    let version = parts[1]
-    let platform = parts[2]
+    const version = parts[1]
+    const platform = parts[2]
     return { name, version, platform }
   })
 }
 
 /**
- * @return {!Array<!TargetBrowser>} the browsers available for testing on this
- *     system.
+ * @return the browsers available for testing on this system.
  */
-function getAvailableBrowsers() {
+function getAvailableBrowsers(): TargetBrowser[] {
   info(`Searching for WebDriver executables installed on the current system...`)
 
-  let targets = [
+  const targets: [BinaryPaths, string][] = [
     [getBinaryPaths(new chrome.Options()), Browser.CHROME],
     [getBinaryPaths(new edge.Options()), Browser.EDGE],
     [getBinaryPaths(new firefox.Options()), Browser.FIREFOX],
@@ -143,15 +143,14 @@ function getAvailableBrowsers() {
     targets.push([getBinaryPaths(new safari.Options()), Browser.SAFARI])
   }
 
-  let availableBrowsers = []
-  for (let pair of targets) {
+  const availableBrowsers: TargetBrowser[] = []
+  for (const pair of targets) {
     const driverPath = pair[0].driverPath
     const browserPath = pair[0].browserPath
     const name = pair[1]
-    const capabilities = pair[2]
     if (driverPath.length > 0 && browserPath && browserPath.length > 0) {
       info(`... located ${name}`)
-      availableBrowsers.push({ name, capabilities })
+      availableBrowsers.push({ name })
     }
   }
 
@@ -162,11 +161,11 @@ function getAvailableBrowsers() {
   return availableBrowsers
 }
 
-let wasInit
-let targetBrowsers
-let seleniumJar
-let seleniumUrl
-let seleniumServer
+let wasInit = false
+let targetBrowsers: TargetBrowser[] = []
+let seleniumJar: string | undefined
+let seleniumUrl: string | undefined
+let seleniumServer: remote.SeleniumServer | null = null
 
 /**
  * Initializes this module by determining which browsers a
@@ -199,11 +198,11 @@ let seleniumServer
  * When either of the `SELENIUM_REMOTE_URL` or `SELENIUM_SERVER_JAR` environment
  * variables are set, the `SELENIUM_BROWSER` variable must also be set.
  *
- * @param {boolean=} force whether to force this module to re-initialize and
+ * @param force whether to force this module to re-initialize and
  *     scan `process.env` again to determine which browsers to run tests
  *     against.
  */
-function init(force = false) {
+function init(force = false): void {
   if (wasInit && !force) {
     return
   }
@@ -251,29 +250,26 @@ function init(force = false) {
   })
 }
 
-const TARGET_MAP = /** !WeakMap<!Environment, !TargetBrowser> */ new WeakMap()
-const URL_MAP = /** !WeakMap<!Environment, ?(string|remote.SeleniumServer)> */ new WeakMap()
-
 /**
  * Defines the environment a {@linkplain suite test suite} is running against.
  * @final
  */
 class Environment {
-  /**
-   * @param {!TargetBrowser} browser the browser targeted in this environment.
-   * @param {?(string|remote.SeleniumServer)=} url remote URL of an existing
-   *     Selenium server to test against.
-   */
-  constructor(browser, url = undefined) {
-    browser = /** @type {!TargetBrowser} */ (Object.seal(Object.assign({}, browser)))
+  readonly #browser: TargetBrowser
+  readonly #url: string | remote.SeleniumServer | null
 
-    TARGET_MAP.set(this, browser)
-    URL_MAP.set(this, url || null)
+  /**
+   * @param browser the browser targeted in this environment.
+   * @param url remote URL of an existing Selenium server to test against.
+   */
+  constructor(browser: TargetBrowser, url: string | remote.SeleniumServer | null | undefined = undefined) {
+    this.#browser = Object.seal(Object.assign({}, browser))
+    this.#url = url || null
   }
 
-  /** @return {!TargetBrowser} the target browser for this test environment. */
-  get browser() {
-    return TARGET_MAP.get(this)
+  /** @return the target browser for this test environment. */
+  get browser(): TargetBrowser {
+    return this.#browser
   }
 
   /**
@@ -281,33 +277,34 @@ class Environment {
    * if the {@linkplain #browser current browser} is in the list of
    * `browsersToIgnore`.
    *
-   * @param {...(string|!Browser)} browsersToIgnore the browsers that should
-   *     be ignored.
-   * @return {function(): boolean} a new predicate function.
+   * @param browsersToIgnore the browsers that should be ignored.
+   * @return a new predicate function.
    */
-  browsers(...browsersToIgnore) {
+  browsers(...browsersToIgnore: string[]): () => boolean {
     return () => browsersToIgnore.indexOf(this.browser.name) !== -1
   }
 
   /**
-   * @return {!Builder} a new WebDriver builder configured to target this
+   * @return a new WebDriver builder configured to target this
    *     environment's {@linkplain #browser browser}.
    */
-  builder() {
+  builder(): Builder {
     const browser = this.browser
-    const urlOrServer = URL_MAP.get(this)
+    const urlOrServer = this.#url
 
     const builder = new Builder()
 
     // Sniff the environment variables for paths to use for the common browsers
     // Chrome
-    if ('SE_CHROMEDRIVER' in process.env) {
-      const found = locate(process.env.SE_CHROMEDRIVER)
+    const chromedriver = process.env.SE_CHROMEDRIVER
+    if (chromedriver !== undefined) {
+      const found = locate(chromedriver)
       const service = new chrome.ServiceBuilder(found)
       builder.setChromeService(service)
     }
-    if ('SE_CHROME' in process.env) {
-      const binary = locate(process.env.SE_CHROME)
+    const chromeBinary = process.env.SE_CHROME
+    if (chromeBinary !== undefined) {
+      const binary = locate(chromeBinary)
       const options = new chrome.Options()
       options.setChromeBinaryPath(binary)
       options.setAcceptInsecureCerts(true)
@@ -316,13 +313,15 @@ class Environment {
     }
     // Edge
     // Firefox
-    if ('SE_GECKODRIVER' in process.env) {
-      const found = locate(process.env.SE_GECKODRIVER)
+    const geckodriver = process.env.SE_GECKODRIVER
+    if (geckodriver !== undefined) {
+      const found = locate(geckodriver)
       const service = new firefox.ServiceBuilder(found)
       builder.setFirefoxService(service)
     }
-    if ('SE_FIREFOX' in process.env) {
-      const binary = locate(process.env.SE_FIREFOX)
+    const firefoxBinary = process.env.SE_FIREFOX
+    if (firefoxBinary !== undefined) {
+      const binary = locate(firefoxBinary)
       const options = new firefox.Options()
       options.enableBidi()
       options.setBinary(binary)
@@ -363,15 +362,14 @@ class Environment {
 
 /**
  * Configuration options for a {@linkplain ./index.suite test suite}.
- * @record
  */
-function SuiteOptions() {}
+export interface SuiteOptions {
+  /** The browsers to run the test suite against. */
+  browsers?: (string | TargetBrowser)[]
+}
 
-/**
- * The browsers to run the test suite against.
- * @type {!Array<!(Browser|TargetBrowser)>}
- */
-SuiteOptions.prototype.browsers
+/** Runtime placeholder so `SuiteOptions` stays an export; the shape is the interface above. */
+export function SuiteOptions(): void {}
 
 let inSuite = false
 
@@ -414,11 +412,10 @@ let inSuite = false
  *
  *     SELENIUM_BROWSER=firefox mocha -t 120000 example_test.js
  *
- * @param {function(!Environment)} fn the function to call to build the test
- *     suite.
- * @param {SuiteOptions=} options configuration options.
+ * @param fn the function to call to build the test suite.
+ * @param options configuration options.
  */
-function suite(fn, options = undefined) {
+function suite(fn: (env: Environment) => void, options: SuiteOptions | undefined = undefined): void {
   if (inSuite) {
     throw Error('Calls to suite() may not be nested')
   }
@@ -426,9 +423,9 @@ function suite(fn, options = undefined) {
     init()
     inSuite = true
 
-    const suiteBrowsers = new Map()
+    const suiteBrowsers = new Map<string, TargetBrowser>()
     if (options && options.browsers) {
-      for (let browser of options.browsers) {
+      for (const browser of options.browsers) {
         if (typeof browser === 'string') {
           suiteBrowsers.set(browser, { name: browser })
         } else {
@@ -437,27 +434,31 @@ function suite(fn, options = undefined) {
       }
     }
 
-    for (let browser of targetBrowsers) {
+    for (const browser of targetBrowsers) {
       if (suiteBrowsers.size > 0 && !suiteBrowsers.has(browser.name)) {
         continue
       }
 
       describe(`[${browser.name}]`, function () {
         if (!seleniumUrl && seleniumJar && !seleniumServer) {
-          seleniumServer = new remote.SeleniumServer(seleniumJar)
+          const server = new remote.SeleniumServer(seleniumJar)
+          seleniumServer = server
 
           const startTimeout = 65 * 1000
 
-          function startSelenium() {
+          function startSelenium(this: { timeout?: unknown }) {
             if (typeof this.timeout === 'function') {
               this.timeout(startTimeout) // For mocha.
             }
 
             info(`Starting selenium server ${seleniumJar}`)
-            return seleniumServer.start(60 * 1000)
+            return server.start(60 * 1000)
           }
 
-          const /** !Function */ beforeHook = global.beforeAll || global.before
+          const beforeHook = Reflect.get(globalThis, 'beforeAll') || Reflect.get(globalThis, 'before')
+          if (!isTestHook(beforeHook)) {
+            throw TypeError('Expected a global beforeAll or before hook function')
+          }
           beforeHook(startSelenium, startTimeout)
         }
 
@@ -489,13 +490,13 @@ function suite(fn, options = undefined) {
  *         });
  *     });
  *
- * @param {function(): boolean} predicateFn A predicate to call to determine
+ * @param predicateFn A predicate to call to determine
  *     if the test should be suppressed. This function MUST be synchronous.
- * @return {{describe: !Function, it: !Function}} an object with wrapped
- *     versions of the `describe` and `it` test functions.
+ * @return an object with wrapped versions of the `describe` and `it` test functions.
  */
-function ignore(predicateFn) {
-  const isJasmine = global.jasmine && typeof global.jasmine === 'object'
+function ignore(predicateFn: () => boolean): { describe: TestHook; it: TestHook } {
+  const jasmine = Reflect.get(globalThis, 'jasmine')
+  const isJasmine = jasmine && typeof jasmine === 'object'
 
   const hooks = {
     describe: getTestHook('describe'),
@@ -503,26 +504,24 @@ function ignore(predicateFn) {
     it: getTestHook('it'),
     xit: getTestHook('xit'),
   }
-  hooks.fdescribe = isJasmine ? getTestHook('fdescribe') : hooks.describe.only
-  hooks.fit = isJasmine ? getTestHook('fit') : hooks.it.only
+  const fdescribeHook = isJasmine ? getTestHook('fdescribe') : hooks.describe.only
+  const fitHook = isJasmine ? getTestHook('fit') : hooks.it.only
 
-  let describe = wrap(hooks.xdescribe, hooks.describe)
-  let fdescribe = wrap(hooks.xdescribe, hooks.fdescribe)
-  //eslint-disable-next-line no-only-tests/no-only-tests
+  const describe = wrap(hooks.xdescribe, hooks.describe)
+  const fdescribe = wrap(hooks.xdescribe, fdescribeHook)
   describe.only = fdescribe
 
-  let it = wrap(hooks.xit, hooks.it)
-  let fit = wrap(hooks.xit, hooks.fit)
-  //eslint-disable-next-line no-only-tests/no-only-tests
+  const it = wrap(hooks.xit, hooks.it)
+  const fit = wrap(hooks.xit, fitHook)
   it.only = fit
 
   return { describe, it }
 
-  function wrap(onSkip, onRun) {
-    return function (...args) {
+  function wrap(onSkip: TestHook, onRun: TestHook | undefined): TestHook {
+    return function (...args: unknown[]) {
       if (predicateFn()) {
         onSkip(...args)
-      } else {
+      } else if (onRun) {
         onRun(...args)
       }
     }
@@ -530,14 +529,13 @@ function ignore(predicateFn) {
 }
 
 /**
- * @param {string} name
- * @return {!Function}
+ * @param name
  * @throws {TypeError}
  */
-function getTestHook(name) {
-  let fn = global[name]
-  let type = typeof fn
-  if (type !== 'function') {
+function getTestHook(name: string): TestHook {
+  const fn = Reflect.get(globalThis, name)
+  const type = typeof fn
+  if (!isTestHook(fn)) {
     throw TypeError(
       `Expected global.${name} to be a function, but is ${type}.` +
         ' This can happen if you try using this module when running with' +
@@ -547,7 +545,7 @@ function getTestHook(name) {
   return fn
 }
 
-function locate(fileLike) {
+function locate(fileLike: string): string {
   if (fs.existsSync(fileLike)) {
     return fileLike
   }
@@ -570,7 +568,7 @@ function locate(fileLike) {
   }
 
   // Find the repo mapping file
-  let repoMappingFile
+  let repoMappingFile: string
   try {
     repoMappingFile = runfiles.resolve('_repo_mapping')
   } catch {
@@ -579,7 +577,7 @@ function locate(fileLike) {
   const lines = fs.readFileSync(repoMappingFile, { encoding: 'utf8' }).split('\n')
 
   // Build a map of "repo we declared we need" to "path"
-  const mapping = {}
+  const mapping: Record<string, string> = {}
   for (const line of lines) {
     if (line.startsWith(',')) {
       const parts = line.split(',', 3)
@@ -606,10 +604,4 @@ function locate(fileLike) {
 
 // PUBLIC API
 
-module.exports = {
-  Environment,
-  SuiteOptions,
-  init,
-  ignore,
-  suite,
-}
+export { Environment, init, ignore, suite }
