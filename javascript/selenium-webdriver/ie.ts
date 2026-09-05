@@ -27,25 +27,23 @@
  * @module selenium-webdriver/ie
  */
 
-'use strict'
-
-const http = require('./http')
-const portprober = require('./net/portprober')
-const remote = require('./remote')
-const webdriver = require('./lib/webdriver')
-const { Browser, Capabilities } = require('./lib/capabilities')
-const error = require('./lib/error')
-const { getBinaryPaths } = require('./common/driverFinder')
+import * as http from './http/index'
+import * as portprober from './net/portprober'
+import * as remote from './remote/index'
+import * as webdriver from './lib/webdriver'
+import { Browser, Capabilities } from './lib/capabilities'
+import type { CapabilitiesLike } from './lib/capabilities'
+import * as error from './lib/error'
+import { getBinaryPaths } from './common/driverFinder'
 
 const OPTIONS_CAPABILITY_KEY = 'se:ieOptions'
 const SCROLL_BEHAVIOUR = {
   BOTTOM: 1,
   TOP: 0,
-}
+} as const
 
 /**
  * IEDriverServer logging levels.
- * @enum {string}
  */
 const Level = {
   FATAL: 'FATAL',
@@ -54,12 +52,12 @@ const Level = {
   INFO: 'INFO',
   DEBUG: 'DEBUG',
   TRACE: 'TRACE',
-}
+} as const
+type Level = (typeof Level)[keyof typeof Level]
 
 /**
  * Option keys:
  * https://github.com/SeleniumHQ/selenium/wiki/DesiredCapabilities#ie-specific
- * @enum {string}
  */
 const Key = {
   IGNORE_PROTECTED_MODE_SETTINGS: 'ignoreProtectedModeSettings',
@@ -83,21 +81,27 @@ const Key = {
   ATTACH_TO_EDGE_CHROMIUM: 'ie.edgechromium',
   EDGE_EXECUTABLE_PATH: 'ie.edgepath',
   IGNORE_PROCESS_MATCH: 'ie.ignoreprocessmatch',
+} as const
+type Key = (typeof Key)[keyof typeof Key]
+
+/** The `se:ieOptions` dictionary; command line switches are stored space-joined. */
+interface IeOptionsDict extends Record<string, unknown> {
+  'ie.browserCommandLineSwitches'?: string | string[]
 }
 
 /**
  * Class for managing IEDriver specific options.
  */
 class Options extends Capabilities {
+  options_: IeOptionsDict
+
   /**
-   * @param {(Capabilities|Map<string, ?>|Object)=} other Another set of
-   *     capabilities to initialize this instance from.
+   * @param other Another set of capabilities to initialize this instance from.
    */
-  constructor(other = undefined) {
+  constructor(other: CapabilitiesLike | undefined = undefined) {
     super(other)
 
-    /** @private {!Object} */
-    this.options_ = this.get(OPTIONS_CAPABILITY_KEY) || {}
+    this.options_ = this.get<IeOptionsDict | undefined>(OPTIONS_CAPABILITY_KEY) || {}
 
     this.set(OPTIONS_CAPABILITY_KEY, this.options_)
     this.setBrowserName(Browser.INTERNET_EXPLORER)
@@ -112,10 +116,10 @@ class Options extends Capabilities {
    * For more information, refer to the IEDriver's
    * [required system configuration](http://goo.gl/eH0Yi3).
    *
-   * @param {boolean} ignoreSettings Whether to ignore protected mode settings.
-   * @return {!Options} A self reference.
+   * @param ignoreSettings Whether to ignore protected mode settings.
+   * @return A self reference.
    */
-  introduceFlakinessByIgnoringProtectedModeSettings(ignoreSettings) {
+  introduceFlakinessByIgnoringProtectedModeSettings(ignoreSettings: boolean): this {
     this.options_[Key.IGNORE_PROTECTED_MODE_SETTINGS] = !!ignoreSettings
     return this
   }
@@ -124,10 +128,10 @@ class Options extends Capabilities {
    * Indicates whether to skip the check that the browser's zoom level is set to
    * 100%.
    *
-   * @param {boolean} ignore Whether to ignore the browser's zoom level settings.
-   * @return {!Options} A self reference.
+   * @param ignore Whether to ignore the browser's zoom level settings.
+   * @return A self reference.
    */
-  ignoreZoomSetting(ignore) {
+  ignoreZoomSetting(ignore: boolean): this {
     this.options_[Key.IGNORE_ZOOM_SETTING] = !!ignore
     return this
   }
@@ -139,10 +143,10 @@ class Options extends Capabilities {
    * instability or flaky and unresponsive code. Only "best effort" support is
    * provided when using this option.
    *
-   * @param {string} url The initial browser URL.
-   * @return {!Options} A self reference.
+   * @param url The initial browser URL.
+   * @return A self reference.
    */
-  initialBrowserUrl(url) {
+  initialBrowserUrl(url: string): this {
     this.options_[Key.INITIAL_BROWSER_URL] = url
     return this
   }
@@ -152,10 +156,10 @@ class Options extends Capabilities {
    * Persistent hovering is achieved by continuously firing mouse over events at
    * the last location the mouse cursor has been moved to.
    *
-   * @param {boolean} enable Whether to enable persistent hovering.
-   * @return {!Options} A self reference.
+   * @param enable Whether to enable persistent hovering.
+   * @return A self reference.
    */
-  enablePersistentHover(enable) {
+  enablePersistentHover(enable: boolean): this {
     this.options_[Key.ENABLE_PERSISTENT_HOVER] = !!enable
     return this
   }
@@ -166,10 +170,10 @@ class Options extends Capabilities {
    * page navigation (true by default). Disabling this option will cause the
    * driver to run with a larger memory footprint.
    *
-   * @param {boolean} enable Whether to enable element reference cleanup.
-   * @return {!Options} A self reference.
+   * @param enable Whether to enable element reference cleanup.
+   * @return A self reference.
    */
-  enableElementCacheCleanup(enable) {
+  enableElementCacheCleanup(enable: boolean): this {
     this.options_[Key.ENABLE_ELEMENT_CACHE_CLEANUP] = !!enable
     return this
   }
@@ -180,10 +184,10 @@ class Options extends Capabilities {
    * option is disabled by default, but delivers much more accurate interaction
    * events when enabled.
    *
-   * @param {boolean} require Whether to require window focus.
-   * @return {!Options} A self reference.
+   * @param require Whether to require window focus.
+   * @return A self reference.
    */
-  requireWindowFocus(require) {
+  requireWindowFocus(require: boolean): this {
     this.options_[Key.REQUIRE_WINDOW_FOCUS] = !!require
     return this
   }
@@ -193,10 +197,10 @@ class Options extends Capabilities {
    * located and attach to a newly opened instance of Internet Explorer. The
    * default is zero, which indicates waiting indefinitely.
    *
-   * @param {number} timeout How long to wait for IE.
-   * @return {!Options} A self reference.
+   * @param timeout How long to wait for IE.
+   * @return A self reference.
    */
-  browserAttachTimeout(timeout) {
+  browserAttachTimeout(timeout: number): this {
     this.options_[Key.BROWSER_ATTACH_TIMEOUT] = Math.max(timeout, 0)
     return this
   }
@@ -207,10 +211,10 @@ class Options extends Capabilities {
    * available. For IE 8 and above, this option requires the TabProcGrowth
    * registry value to be set to 0.
    *
-   * @param {boolean} force Whether to use the CreateProcess API.
-   * @return {!Options} A self reference.
+   * @param force Whether to use the CreateProcess API.
+   * @return A self reference.
    */
-  forceCreateProcessApi(force) {
+  forceCreateProcessApi(force: boolean): this {
     this.options_[Key.FORCE_CREATE_PROCESS] = !!force
     return this
   }
@@ -219,12 +223,11 @@ class Options extends Capabilities {
    * Specifies command-line switches to use when launching Internet Explorer.
    * This is only valid when used with {@link #forceCreateProcessApi}.
    *
-   * @param {...(string|!Array.<string>)} args The arguments to add.
-   * @return {!Options} A self reference.
+   * @param args The arguments to add.
+   * @return A self reference.
    */
-
-  addBrowserCommandSwitches(...args) {
-    let current = this.options_[Key.BROWSER_COMMAND_LINE_SWITCHES] || []
+  addBrowserCommandSwitches(...args: (string | string[])[]): this {
+    let current: string | (string | string[])[] = this.options_[Key.BROWSER_COMMAND_LINE_SWITCHES] || []
     if (typeof current == 'string') {
       current = current.split(' ')
     }
@@ -236,13 +239,12 @@ class Options extends Capabilities {
    * Specifies command-line switches to use when launching Internet Explorer.
    * This is only valid when used with {@link #forceCreateProcessApi}.
    *
-   * @param {...(string|!Array.<string>)} args The arguments to add.
+   * @param args The arguments to add.
    * @deprecated Use {@link #addBrowserCommandSwitches} instead.
-   * @return {!Options} A self reference.
+   * @return A self reference.
    */
-
-  addArguments(...args) {
-    let current = this.options_[Key.BROWSER_COMMAND_LINE_SWITCHES] || []
+  addArguments(...args: (string | string[])[]): this {
+    let current: string | (string | string[])[] = this.options_[Key.BROWSER_COMMAND_LINE_SWITCHES] || []
     if (typeof current == 'string') {
       current = current.split(' ')
     }
@@ -255,10 +257,10 @@ class Options extends Capabilities {
    * not set, setting a {@linkplain #setProxy proxy} will configure the system
    * proxy. The default behavior is to use the system proxy.
    *
-   * @param {boolean} enable Whether to enable per-process proxy settings.
-   * @return {!Options} A self reference.
+   * @param enable Whether to enable per-process proxy settings.
+   * @return A self reference.
    */
-  usePerProcessProxy(enable) {
+  usePerProcessProxy(enable: boolean): this {
     this.options_[Key.USE_PER_PROCESS_PROXY] = !!enable
     return this
   }
@@ -269,60 +271,60 @@ class Options extends Capabilities {
    * for all running instances of Internet Explorer, including those started
    * manually._
    *
-   * @param {boolean} cleanSession Whether to clear all session data on startup.
-   * @return {!Options} A self reference.
+   * @param cleanSession Whether to clear all session data on startup.
+   * @return A self reference.
    */
-  ensureCleanSession(cleanSession) {
+  ensureCleanSession(cleanSession: boolean): this {
     this.options_[Key.ENSURE_CLEAN_SESSION] = !!cleanSession
     return this
   }
 
   /**
    * Sets the path to the log file the driver should log to.
-   * @param {string} file The log file path.
-   * @return {!Options} A self reference.
+   * @param file The log file path.
+   * @return A self reference.
    */
-  setLogFile(file) {
+  setLogFile(file: string): this {
     this.options_[Key.LOG_FILE] = file
     return this
   }
 
   /**
    * Sets the IEDriverServer's logging {@linkplain Level level}.
-   * @param {Level} level The logging level.
-   * @return {!Options} A self reference.
+   * @param level The logging level.
+   * @return A self reference.
    */
-  setLogLevel(level) {
+  setLogLevel(level: Level): this {
     this.options_[Key.LOG_LEVEL] = level
     return this
   }
 
   /**
    * Sets the IP address of the driver's host adapter.
-   * @param {string} host The IP address to use.
-   * @return {!Options} A self reference.
+   * @param host The IP address to use.
+   * @return A self reference.
    */
-  setHost(host) {
+  setHost(host: string): this {
     this.options_[Key.HOST] = host
     return this
   }
 
   /**
    * Sets the path of the temporary data directory to use.
-   * @param {string} path The log file path.
-   * @return {!Options} A self reference.
+   * @param path The log file path.
+   * @return A self reference.
    */
-  setExtractPath(path) {
+  setExtractPath(path: string): this {
     this.options_[Key.EXTRACT_PATH] = path
     return this
   }
 
   /**
    * Sets whether the driver should start in silent mode.
-   * @param {boolean} silent Whether to run in silent mode.
-   * @return {!Options} A self reference.
+   * @param silent Whether to run in silent mode.
+   * @return A self reference.
    */
-  silent(silent) {
+  silent(silent: boolean): this {
     this.options_[Key.SILENT] = silent
     return this
   }
@@ -330,20 +332,20 @@ class Options extends Capabilities {
   /**
    * The options File Upload Dialog Timeout in milliseconds
    *
-   * @param {number} timeout How long to wait for IE.
-   * @return {!Options} A self reference.
+   * @param timeout How long to wait for IE.
+   * @return A self reference.
    */
-  fileUploadDialogTimeout(timeout) {
+  fileUploadDialogTimeout(timeout: number): this {
     this.options_[Key.FILE_UPLOAD_DIALOG_TIMEOUT] = Math.max(timeout, 0)
     return this
   }
 
   /**
    * Sets the path of the EdgeChromium driver.
-   * @param {string} path The EdgeChromium driver path.
-   * @return {!Options} A self reference.
+   * @param path The EdgeChromium driver path.
+   * @return A self reference.
    */
-  setEdgePath(path) {
+  setEdgePath(path: string): this {
     this.options_[Key.EDGE_EXECUTABLE_PATH] = path
     return this
   }
@@ -351,21 +353,21 @@ class Options extends Capabilities {
   /**
    * Sets the IEDriver to drive Chromium-based Edge in Internet Explorer mode.
    *
-   * @param {boolean} attachEdgeChromium Whether to run in Chromium-based-Edge in IE mode
-   * @return {!Options} A self reference.
+   * @param attachEdgeChromium Whether to run in Chromium-based-Edge in IE mode
+   * @return A self reference.
    */
-  setEdgeChromium(attachEdgeChromium) {
+  setEdgeChromium(attachEdgeChromium: boolean): this {
     this.options_[Key.ATTACH_TO_EDGE_CHROMIUM] = !!attachEdgeChromium
     return this
   }
 
   /**
    * Sets how elements should be scrolled into view for interaction.
-   * @param {number} behavior The desired scroll behavior: either 0 to align with
+   * @param behavior The desired scroll behavior: either 0 to align with
    *     the top of the viewport or 1 to align with the bottom.
-   * @return {!Options} A self reference.
+   * @return A self reference.
    */
-  setScrollBehavior(behavior) {
+  setScrollBehavior(behavior: number): this {
     if (behavior && behavior !== SCROLL_BEHAVIOUR.TOP && behavior !== SCROLL_BEHAVIOUR.BOTTOM) {
       throw new error.InvalidArgumentError(`Element Scroll Behavior out of range.
       It should be either ${SCROLL_BEHAVIOUR.TOP} or ${SCROLL_BEHAVIOUR.BOTTOM}`)
@@ -375,7 +377,7 @@ class Options extends Capabilities {
   }
 }
 
-function createServiceFromCapabilities(capabilities) {
+function createServiceFromCapabilities(capabilities: Capabilities): remote.DriverService {
   if (process.platform !== 'win32') {
     throw Error(
       'The IEDriver may only be used on Windows, but you appear to be on ' +
@@ -385,8 +387,8 @@ function createServiceFromCapabilities(capabilities) {
     )
   }
 
-  let exe = null // Let Selenium Manager find it
-  var args = []
+  const exe = null // Let Selenium Manager find it
+  const args: string[] = []
   if (capabilities.has(Key.HOST)) {
     args.push('--host=' + capabilities.get(Key.HOST))
   }
@@ -403,7 +405,7 @@ function createServiceFromCapabilities(capabilities) {
     args.push('--silent')
   }
 
-  var port = portprober.findFreePort()
+  const port = portprober.findFreePort()
   return new remote.DriverService(exe, {
     loopback: true,
     port: port,
@@ -421,10 +423,10 @@ function createServiceFromCapabilities(capabilities) {
  */
 class ServiceBuilder extends remote.DriverService.Builder {
   /**
-   * @param {string=} opt_exe Path to the server executable to use. If omitted,
+   * @param opt_exe Path to the server executable to use. If omitted,
    *     the builder will attempt to locate the IEDriverServer on the system PATH.
    */
-  constructor(opt_exe) {
+  constructor(opt_exe?: string) {
     super(opt_exe)
     this.setLoopback(true) // Required.
   }
@@ -433,33 +435,38 @@ class ServiceBuilder extends remote.DriverService.Builder {
 /**
  * A WebDriver client for Microsoft's Internet Explorer.
  */
+// @ts-expect-error TS2417: the static createSession intentionally differs from WebDriver.createSession (public API).
 class Driver extends webdriver.WebDriver {
   /**
    * Creates a new session for Microsoft's Internet Explorer.
    *
-   * @param {(Capabilities|Options)=} options The configuration options.
-   * @param {(remote.DriverService)=} opt_service The `DriverService` to use
+   * @param options The configuration options.
+   * @param opt_service The `DriverService` to use
    *   to start the IEDriverServer in a child process, optionally.
-   * @return {!Driver} A new driver instance.
+   * @return A new driver instance.
    */
-  static createSession(options, opt_service) {
-    options = options || new Options()
+  static createSession<T extends Driver>(
+    this: webdriver.WebDriverConstructor<T>,
+    options?: Capabilities,
+    opt_service?: remote.DriverService,
+  ): T {
+    const caps = options || new Options()
 
-    let service
+    let service: remote.DriverService
 
     if (opt_service instanceof remote.DriverService) {
       service = opt_service
     } else {
-      service = createServiceFromCapabilities(options)
+      service = createServiceFromCapabilities(caps)
     }
     if (!service.getExecutable()) {
-      service.setExecutable(getBinaryPaths(options).driverPath)
+      service.setExecutable(getBinaryPaths(caps).driverPath)
     }
 
-    let client = service.start().then((url) => new http.HttpClient(url))
-    let executor = new http.Executor(client)
+    const client = service.start().then((url) => new http.HttpClient(url))
+    const executor = new http.Executor(client)
 
-    return /** @type {!Driver} */ (super.createSession(executor, options, () => service.kill()))
+    return super.createSession<T>(executor, caps, () => service.kill())
   }
 
   /**
@@ -467,15 +474,10 @@ class Driver extends webdriver.WebDriver {
    * implementation.
    * @override
    */
-  setFileDetector() {}
+  setFileDetector(): void {}
 }
 
 // PUBLIC API
 
-exports.Driver = Driver
-exports.Options = Options
-exports.Level = Level
-exports.ServiceBuilder = ServiceBuilder
-exports.Key = Key
-exports.VENDOR_COMMAND_PREFIX = OPTIONS_CAPABILITY_KEY
-exports.Behavior = SCROLL_BEHAVIOUR
+export { Driver, Options, Level, ServiceBuilder, Key }
+export { OPTIONS_CAPABILITY_KEY as VENDOR_COMMAND_PREFIX, SCROLL_BEHAVIOUR as Behavior }
