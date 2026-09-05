@@ -19,16 +19,16 @@
  * Represents a set of parameters for creating a context.
  * Described in https://w3c.github.io/webdriver-bidi/#command-browsingContext-create.
  */
-class CreateContextParameters {
-  #map = new Map()
+export class CreateContextParameters {
+  #map = new Map<string, unknown>()
 
   /**
    * Sets the reference context.
-   * @param {string} id - The ID of the reference context.
-   * @returns {CreateContextParameters} - The updated instance of CreateContextParameters for chaining.
+   * @param id - The ID of the reference context.
+   * @returns The updated instance of CreateContextParameters for chaining.
    * @throws {Error} - If the provided ID is not a string.
    */
-  referenceContext(id) {
+  referenceContext(id: string): this {
     if (typeof id !== 'string') {
       throw new Error(`ReferenceContext must be string. Received:'${id}'`)
     }
@@ -39,11 +39,11 @@ class CreateContextParameters {
   /**
    * Sets the background parameter.
    *
-   * @param {boolean} background - The background value to set.
-   * @returns {CreateContextParameters} - The updated instance of CreateContextParameters for chaining.
+   * @param background - The background value to set.
+   * @returns The updated instance of CreateContextParameters for chaining.
    * @throws {Error} - If the background parameter is not a boolean.
    */
-  background(background) {
+  background(background: boolean): this {
     if (typeof background !== 'boolean') {
       throw new Error(`Background must be boolean. Received:'${background}'`)
     }
@@ -53,11 +53,11 @@ class CreateContextParameters {
 
   /**
    * Sets the user context.
-   * @param {string} userContext - The user context to set.
-   * @returns {CreateContextParameters} - The updated instance of CreateContextParameters for chaining.
+   * @param userContext - The user context to set.
+   * @returns The updated instance of CreateContextParameters for chaining.
    * @throws {Error} - If the userContext parameter is not a string.
    */
-  userContext(userContext) {
+  userContext(userContext: string): this {
     if (typeof userContext !== 'string') {
       throw new Error(`UserContext must be string. Received:'${userContext}'`)
     }
@@ -65,9 +65,7 @@ class CreateContextParameters {
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, unknown> {
     return this.#map
   }
 }
-
-module.exports = { CreateContextParameters }

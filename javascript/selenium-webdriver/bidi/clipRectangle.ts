@@ -20,44 +20,44 @@
  * Described in https://w3c.github.io/webdriver-bidi/#command-browsingContext-captureScreenshot.
  */
 class ClipRectangle {
-  clipType
+  clipType: string
 
   /**
    * Constructs a new ClipRectangle object.
-   * @param {string} type - The type of the clip rectangle.
+   * @param type - The type of the clip rectangle.
    */
-  constructor(type) {
+  constructor(type: string) {
     this.clipType = type
   }
 
   /**
    * Gets the type of the clip rectangle.
-   * @returns {string} The type of the clip rectangle.
    */
-  get type() {
+  get type(): string {
     return this.clipType
   }
 
-  asMap() {}
+  asMap(): Map<string, unknown> | undefined {
+    return undefined
+  }
 }
 
 /**
  * Represents a clip rectangle for an element.
  * @extends ClipRectangle
  */
-class ElementClipRectangle extends ClipRectangle {
-  #sharedId
-  #handleId
+export class ElementClipRectangle extends ClipRectangle {
+  #sharedId: string
+  #handleId?: string
 
   /**
    * Constructs a new ElementClipRectangle instance.
-   * @param {string} sharedId - The shared ID of the element.
-   * @param {string} [handleId] - The handle ID of the element (optional).
+   * @param sharedId - The shared ID of the element.
+   * @param handleId - The handle ID of the element (optional).
    */
-  constructor(sharedId, handleId = undefined) {
+  constructor(sharedId: string, handleId: string | undefined = undefined) {
     super('element')
     this.#sharedId = sharedId
-
     if (handleId !== undefined) {
       this.#handleId = handleId
     }
@@ -65,13 +65,12 @@ class ElementClipRectangle extends ClipRectangle {
 
   /**
    * Converts the ElementClipRectangle instance to a map.
-   * @returns {Map} - The converted map.
    */
-  asMap() {
-    const map = new Map()
-    map.set('type', super.type)
+  asMap(): Map<string, unknown> {
+    const map = new Map<string, unknown>()
+    map.set('type', this.type)
 
-    const sharedReference = new Map()
+    const sharedReference = new Map<string, string>()
     sharedReference.set('sharedId', this.#sharedId)
     if (this.#handleId !== undefined) {
       sharedReference.set('handleId', this.#handleId)
@@ -87,20 +86,20 @@ class ElementClipRectangle extends ClipRectangle {
  * Represents a box-shaped clip rectangle.
  * @extends ClipRectangle
  */
-class BoxClipRectangle extends ClipRectangle {
-  #x
-  #y
-  #width
-  #height
+export class BoxClipRectangle extends ClipRectangle {
+  #x: number
+  #y: number
+  #width: number
+  #height: number
 
   /**
    * Constructs a new BoxClipRectangle object.
-   * @param {number} x - The x-coordinate of the top-left corner of the rectangle.
-   * @param {number} y - The y-coordinate of the top-left corner of the rectangle.
-   * @param {number} width - The width of the rectangle.
-   * @param {number} height - The height of the rectangle.
+   * @param x - The x-coordinate of the top-left corner of the rectangle.
+   * @param y - The y-coordinate of the top-left corner of the rectangle.
+   * @param width - The width of the rectangle.
+   * @param height - The height of the rectangle.
    */
-  constructor(x, y, width, height) {
+  constructor(x: number, y: number, width: number, height: number) {
     super('box')
     this.#x = x
     this.#y = y
@@ -110,18 +109,14 @@ class BoxClipRectangle extends ClipRectangle {
 
   /**
    * Converts the BoxClipRectangle object to a Map.
-   * @returns {Map<string, any>} - The Map representation of the BoxClipRectangle object.
    */
-  asMap() {
-    const map = new Map()
-    map.set('type', super.type)
+  asMap(): Map<string, unknown> {
+    const map = new Map<string, unknown>()
+    map.set('type', this.type)
     map.set('x', this.#x)
     map.set('y', this.#y)
     map.set('width', this.#width)
     map.set('height', this.#height)
-
     return map
   }
 }
-
-module.exports = { BoxClipRectangle, ElementClipRectangle }

@@ -15,25 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
-const { Source } = require('./scriptTypes')
+import { Source, SourceJson } from './scriptTypes'
 
 /**
  * Represents a base log entry.
  * Described in https://w3c.github.io/webdriver-bidi/#types-log-logentry.
  */
-class BaseLogEntry {
+export class BaseLogEntry {
+  private readonly _level: string
+  private readonly _source: Source
+  private readonly _text: string
+  private readonly _timeStamp: number
+  private readonly _stackTrace: unknown
+
   /**
    * Creates a new instance of BaseLogEntry.
-   * @param {string} level - The log level.
-   * @param {source} source - Script Source
-   * @param {string} text - The log source.
-   * @param {string} text - The log text.
-   * @param {number} timeStamp - The log timestamp.
-   * @param {string} stackTrace - The log stack trace.
+   * @param level - The log level.
+   * @param source - Script Source
+   * @param text - The log text.
+   * @param timeStamp - The log timestamp.
+   * @param stackTrace - The log stack trace.
    */
-  constructor(level, source, text, timeStamp, stackTrace) {
+  constructor(level: string, source: SourceJson, text: string, timeStamp: number, stackTrace: unknown) {
     this._level = level
     this._source = new Source(source)
     this._text = text
@@ -43,77 +46,84 @@ class BaseLogEntry {
 
   /**
    * Gets the log level.
-   * @returns {string} The log level.
    */
-  get level() {
+  get level(): string {
     return this._level
   }
 
   /**
    * Gets the log text.
-   * @returns {string} The log text.
    */
-  get text() {
+  get text(): string {
     return this._text
   }
 
   /**
    * Gets the log timestamp.
-   * @returns {number} The log timestamp.
    */
-  get timeStamp() {
+  get timeStamp(): number {
     return this._timeStamp
   }
 
   /**
    * Gets the log stack trace.
-   * @returns {string} The log stack trace.
    */
-  get stackTrace() {
+  get stackTrace(): unknown {
     return this._stackTrace
   }
 
-  get source() {
+  get source(): Source {
     return this._source
   }
 }
 
 /**
  * Represents a generic log entry.
- * @class
  * @extends BaseLogEntry
  */
-class GenericLogEntry extends BaseLogEntry {
+export class GenericLogEntry extends BaseLogEntry {
+  private readonly _type: string
+
   /**
    * Creates an instance of GenericLogEntry.
-   * @param {string} level - The log level.
-   * @param {source} source - Script Source
-   * @param {string} text - The log text.
-   * @param {Date} timeStamp - The log timestamp.
-   * @param {string} type - The log type.
-   * @param {string} stackTrace - The log stack trace.
+   * @param level - The log level.
+   * @param source - Script Source
+   * @param text - The log text.
+   * @param timeStamp - The log timestamp.
+   * @param type - The log type.
+   * @param stackTrace - The log stack trace.
    */
-  constructor(level, source, text, timeStamp, type, stackTrace) {
+  constructor(level: string, source: SourceJson, text: string, timeStamp: number, type: string, stackTrace: unknown) {
     super(level, source, text, timeStamp, stackTrace)
     this._type = type
   }
 
   /**
    * Gets the log type.
-   * @returns {string} The log type.
    */
-  get type() {
+  get type(): string {
     return this._type
   }
 }
 
 /**
  * Represents a log entry for console logs.
- * @class
  * @extends GenericLogEntry
  */
-class ConsoleLogEntry extends GenericLogEntry {
-  constructor(level, source, text, timeStamp, type, method, args, stackTrace) {
+export class ConsoleLogEntry extends GenericLogEntry {
+  private readonly _method: string
+  private readonly _args: unknown[]
+
+  constructor(
+    level: string,
+    source: SourceJson,
+    text: string,
+    timeStamp: number,
+    type: string,
+    method: string,
+    args: unknown[],
+    stackTrace: unknown,
+  ) {
     super(level, source, text, timeStamp, type, stackTrace)
     this._method = method
     this._args = args
@@ -121,36 +131,25 @@ class ConsoleLogEntry extends GenericLogEntry {
 
   /**
    * Gets the method associated with the log entry.
-   * @returns {string} The method associated with the log entry.
    */
-  get method() {
+  get method(): string {
     return this._method
   }
+
   /**
    * Gets the arguments associated with the log entry.
-   * @returns {Array} The arguments associated with the log entry.
    */
-  get args() {
+  get args(): unknown[] {
     return this._args
   }
 }
 
 /**
  * Represents a log entry for JavaScript logs.
- * @class
  * @extends GenericLogEntry
  */
-class JavascriptLogEntry extends GenericLogEntry {
-  constructor(level, source, text, timeStamp, type, stackTrace) {
+export class JavascriptLogEntry extends GenericLogEntry {
+  constructor(level: string, source: SourceJson, text: string, timeStamp: number, type: string, stackTrace: unknown) {
     super(level, source, text, timeStamp, type, stackTrace)
   }
-}
-
-// PUBLIC API
-
-module.exports = {
-  BaseLogEntry,
-  GenericLogEntry,
-  ConsoleLogEntry,
-  JavascriptLogEntry,
 }

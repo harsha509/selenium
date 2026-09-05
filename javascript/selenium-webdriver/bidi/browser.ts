@@ -15,97 +15,99 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { WindowState, ClientWindowInfo } = require('./clientWindowInfo')
+import type BiDi from './index'
+import type { Capabilities } from '../lib/capabilities'
+import { WindowState, ClientWindowInfo, ClientWindowInfoParams } from './clientWindowInfo'
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface BidiDriver {
+  getCapabilities(): Promise<Capabilities>
+  getBidi(): Promise<BiDi>
+}
 
 /**
  * Represents the commands and events under Browser Module.
  * Described in https://w3c.github.io/webdriver-bidi/#module-browser
  */
 class Browser {
-  constructor(driver) {
+  private readonly _driver: BidiDriver
+  bidi!: BiDi
+
+  constructor(driver: BidiDriver) {
     this._driver = driver
   }
 
-  async init() {
+  async init(): Promise<void> {
     if (!(await this._driver.getCapabilities()).get('webSocketUrl')) {
       throw Error('WebDriver instance must support BiDi protocol')
     }
-
     this.bidi = await this._driver.getBidi()
   }
 
   /**
    * Creates a new user context.
-   * @returns {Promise<string>} A promise that resolves to the user context id.
+   * @returns A promise that resolves to the user context id.
    */
-  async createUserContext() {
+  async createUserContext(): Promise<string> {
     const command = {
       method: 'browser.createUserContext',
       params: {},
     }
-
-    let response = await this.bidi.send(command)
-
-    return response.result.userContext
+    const response = await this.bidi.send(command)
+    return (response.result as { userContext: string }).userContext
   }
 
   /**
    * Gets the list of all user contexts.
-   * @returns {Promise<string[]>} A promise that resolves to an array of user context ids.
+   * @returns A promise that resolves to an array of user context ids.
    */
-  async getUserContexts() {
+  async getUserContexts(): Promise<string[]> {
     const command = {
       method: 'browser.getUserContexts',
       params: {},
     }
-
-    let response = await this.bidi.send(command)
-
-    let userContexts = []
-
-    let userContextsArray = response.result.userContexts
-
-    for (let userContextJson of userContextsArray) {
+    const response = await this.bidi.send(command)
+    const userContexts: string[] = []
+    const userContextsArray = (response.result as { userContexts: { userContext: string }[] }).userContexts
+    for (const userContextJson of userContextsArray) {
       userContexts.push(userContextJson.userContext)
     }
-
     return userContexts
   }
 
   /**
    * Removes a user context.
-   * @param {string} userContext The user context id to be removed.
-   * @returns {Promise<void>}
+   * @param userContext The user context id to be removed.
    */
-  async removeUserContext(userContext) {
+  async removeUserContext(userContext: string): Promise<void> {
     const command = {
       method: 'browser.removeUserContext',
       params: { userContext: userContext },
     }
-
     await this.bidi.send(command)
   }
 
   /**
    * Gets information about all client windows.
-   * @returns {Promise<ClientWindowInfo[]>} Array of client window information
+   * @returns Array of client window information
    */
-  async getClientWindows() {
+  async getClientWindows(): Promise<ClientWindowInfo[]> {
     const command = {
       method: 'browser.getClientWindows',
       params: {},
     }
-
     const response = await this.bidi.send(command)
-    return response.result.clientWindows.map((window) => ClientWindowInfo.fromJson(window))
+    const clientWindows = (response.result as { clientWindows: ClientWindowInfoParams[] }).clientWindows
+    return clientWindows.map((window) => ClientWindowInfo.fromJson(window))
   }
 }
 
-async function getBrowserInstance(driver) {
-  let instance = new Browser(driver)
+async function getBrowserInstance(driver: BidiDriver): Promise<Browser> {
+  const instance = new Browser(driver)
   await instance.init()
   return instance
 }
 
-module.exports = getBrowserInstance
-module.exports.WindowState = WindowState
+getBrowserInstance.WindowState = WindowState
+
+export = getBrowserInstance

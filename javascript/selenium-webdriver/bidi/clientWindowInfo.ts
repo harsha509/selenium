@@ -15,25 +15,46 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const WindowState = Object.freeze({
+export const WindowState = Object.freeze({
   FULLSCREEN: 'fullscreen',
   MAXIMIZED: 'maximized',
   MINIMIZED: 'minimized',
   NORMAL: 'normal',
-})
+} as const)
 
-class ClientWindowInfo {
+export type WindowState = (typeof WindowState)[keyof typeof WindowState]
+
+/** Window information parameters, as received from the remote end. */
+export interface ClientWindowInfoParams {
+  clientWindow: string
+  state: string
+  width: number
+  height: number
+  x: number
+  y: number
+  active: boolean
+}
+
+export class ClientWindowInfo {
+  clientWindow: string
+  state: string
+  width: number
+  height: number
+  x: number
+  y: number
+  active: boolean
+
   /**
-   * @param {Object} params Window information parameters
-   * @param {string} params.clientWindow Window identifier
-   * @param {string} params.state Window state from WindowState
-   * @param {number} params.width Window width
-   * @param {number} params.height Window height
-   * @param {number} params.x Window x coordinate
-   * @param {number} params.y Window y coordinate
-   * @param {boolean} params.active Whether window is active and can receive keyboard input
+   * @param params Window information parameters
+   * @param params.clientWindow Window identifier
+   * @param params.state Window state from WindowState
+   * @param params.width Window width
+   * @param params.height Window height
+   * @param params.x Window x coordinate
+   * @param params.y Window y coordinate
+   * @param params.active Whether window is active and can receive keyboard input
    */
-  constructor({ clientWindow, state, width, height, x, y, active }) {
+  constructor({ clientWindow, state, width, height, x, y, active }: ClientWindowInfoParams) {
     this.clientWindow = clientWindow
     this.state = state
     this.width = width
@@ -43,12 +64,10 @@ class ClientWindowInfo {
     this.active = active
   }
 
-  static fromJson(json) {
+  static fromJson(json: ClientWindowInfoParams): ClientWindowInfo {
     return new ClientWindowInfo({
       ...json,
       state: json.state.toLowerCase(),
     })
   }
 }
-
-module.exports = { WindowState, ClientWindowInfo }

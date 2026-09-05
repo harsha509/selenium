@@ -18,19 +18,23 @@
 /**
  * Represents the type of script evaluation result.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-EvaluateResult.
- * @enum {string}
  */
-const EvaluateResultType = {
+export const EvaluateResultType = {
   SUCCESS: 'success',
   EXCEPTION: 'exception',
-}
+} as const
+
+export type EvaluateResultType = (typeof EvaluateResultType)[keyof typeof EvaluateResultType]
 
 /**
  * Represents a successful evaluation result.
- * @class
  */
-class EvaluateResultSuccess {
-  constructor(realmId, value) {
+export class EvaluateResultSuccess {
+  resultType: EvaluateResultType
+  realmId: string
+  result: unknown
+
+  constructor(realmId: string, value: unknown) {
     this.resultType = EvaluateResultType.SUCCESS
     this.realmId = realmId
     this.result = value
@@ -39,10 +43,13 @@ class EvaluateResultSuccess {
 
 /**
  * Represents an exception that occurred during evaluation of a result.
- * @class
  */
-class EvaluateResultException {
-  constructor(realmId, exceptionDetails) {
+export class EvaluateResultException {
+  resultType: EvaluateResultType
+  realmId: string
+  exceptionDetails: ExceptionDetails
+
+  constructor(realmId: string, exceptionDetails: ExceptionDetails) {
     this.resultType = EvaluateResultType.EXCEPTION
     this.realmId = realmId
     this.exceptionDetails = exceptionDetails
@@ -51,21 +58,19 @@ class EvaluateResultException {
 
 /**
  * Represents details of an exception.
- * @class
  */
-class ExceptionDetails {
-  constructor(exceptionDetails) {
+export class ExceptionDetails {
+  columnNumber: unknown
+  exception: unknown
+  lineNumber: unknown
+  stackTrace: unknown
+  text: unknown
+
+  constructor(exceptionDetails: Record<string, unknown>) {
     this.columnNumber = 'columnNumber' in exceptionDetails ? exceptionDetails['columnNumber'] : null
     this.exception = 'exception' in exceptionDetails ? exceptionDetails['exception'] : null
     this.lineNumber = 'lineNumber' in exceptionDetails ? exceptionDetails['lineNumber'] : null
     this.stackTrace = 'stackTrace' in exceptionDetails ? exceptionDetails['stackTrace'] : null
     this.text = 'text' in exceptionDetails ? exceptionDetails['text'] : null
   }
-}
-
-module.exports = {
-  EvaluateResultType,
-  EvaluateResultSuccess,
-  EvaluateResultException,
-  ExceptionDetails,
 }

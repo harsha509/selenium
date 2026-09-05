@@ -15,33 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { BoxClipRectangle, ElementClipRectangle } = require('./clipRectangle')
+import { BoxClipRectangle, ElementClipRectangle } from './clipRectangle'
 
 /**
  * Defines the reference point from which to compute offsets for capturing screenshot.
- *
- * @enum {string}
  */
-const Origin = {
+export const Origin = {
   VIEWPORT: 'viewport',
   DOCUMENT: 'document',
-}
+} as const
+
+export type Origin = (typeof Origin)[keyof typeof Origin]
 
 /**
  * Represents the optional parameters for capturing a screenshot.
  * Described in https://w3c.github.io/webdriver-bidi/#command-browsingContext-captureScreenshot.
  */
-class CaptureScreenshotParameters {
-  #map = new Map()
+export class CaptureScreenshotParameters {
+  #map = new Map<string, unknown>()
 
   /**
    * Sets the origin for capturing the screenshot.
    *
-   * @param {Origin} origin - The origin for capturing the screenshot. Must be one of `Origin.VIEWPORT` or `Origin.DOCUMENT`.
-   * @returns {CaptureScreenshotParameters} - The current instance of the CaptureScreenshotParameters for chaining.
+   * @param origin - The origin for capturing the screenshot. Must be one of `Origin.VIEWPORT` or `Origin.DOCUMENT`.
+   * @returns The current instance of the CaptureScreenshotParameters for chaining.
    * @throws {Error} - If the provided origin is not valid.
    */
-  origin(origin) {
+  origin(origin: Origin): this {
     if (origin !== Origin.VIEWPORT && origin !== Origin.DOCUMENT) {
       throw new Error(`Origin must be one of ${Object.values(Origin)}. Received:'${origin}'`)
     }
@@ -52,18 +52,16 @@ class CaptureScreenshotParameters {
   /**
    * Sets the image format and quality for capturing a screenshot.
    *
-   * @param {string} type - The image format type.
-   * @param {number} [quality] - The image quality (optional).
+   * @param type - The image format type.
+   * @param quality - The image quality (optional).
    * @throws {Error} If the type is not a string or if the quality is not a number.
-   * @returns {CaptureScreenshotParameters} - The current instance of the CaptureScreenshotParameters for chaining.
+   * @returns The current instance of the CaptureScreenshotParameters for chaining.
    */
-  imageFormat(type, quality = undefined) {
+  imageFormat(type: string, quality: number | undefined = undefined): this {
     if (typeof type !== 'string') {
       throw new Error(`Type must be an instance of String. Received:'${type}'`)
     }
-
     this.#map.set('type', type)
-
     if (quality !== undefined) {
       if (typeof quality !== 'number') {
         throw new Error(`Quality must be a number. Received:'${quality}'`)
@@ -76,11 +74,11 @@ class CaptureScreenshotParameters {
   /**
    * Sets the clip rectangle for capturing a screenshot.
    *
-   * @param {BoxClipRectangle|ElementClipRectangle} clipRectangle - The clip rectangle to set.
+   * @param clipRectangle - The clip rectangle to set.
    * @throws {Error} If the clipRectangle is not an instance of ClipRectangle.
-   * @returns {CaptureScreenshotParameters} - The current instance of the CaptureScreenshotParameters for chaining.
+   * @returns The current instance of the CaptureScreenshotParameters for chaining.
    */
-  clipRectangle(clipRectangle) {
+  clipRectangle(clipRectangle: BoxClipRectangle | ElementClipRectangle): this {
     if (!(clipRectangle instanceof BoxClipRectangle || clipRectangle instanceof ElementClipRectangle)) {
       throw new Error(`ClipRectangle must be an instance of ClipRectangle. Received:'${clipRectangle}'`)
     }
@@ -88,9 +86,7 @@ class CaptureScreenshotParameters {
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, unknown> {
     return this.#map
   }
 }
-
-module.exports = { CaptureScreenshotParameters, Origin }

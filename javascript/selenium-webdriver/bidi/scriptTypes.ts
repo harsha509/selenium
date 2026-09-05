@@ -15,19 +15,28 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/** A script.Source as received on the wire. */
+export interface SourceJson {
+  realm: string
+  context?: string
+}
+
 /**
  * Represents a message received through a channel.
  * Described in https://w3c.github.io/webdriver-bidi/#event-script-message.
- * @class
  */
-class Message {
+export class Message {
+  private readonly _channel: string
+  private readonly _data: unknown
+  private readonly _source: Source
+
   /**
    * Creates a new Message instance.
-   * @param {string} channel - The channel through which the message is received.
-   * @param {RemoteValue} data - The data contained in the message.
-   * @param {Source} source - The source of the message.
+   * @param channel - The channel through which the message is received.
+   * @param data - The data contained in the message.
+   * @param source - The source of the message.
    */
-  constructor(channel, data, source) {
+  constructor(channel: string, data: unknown, source: Source) {
     this._channel = channel
     this._data = data
     this._source = source
@@ -35,25 +44,22 @@ class Message {
 
   /**
    * Gets the channel through which the message is received.
-   * @returns {string} The channel.
    */
-  get channel() {
+  get channel(): string {
     return this._channel
   }
 
   /**
    * Gets the data contained in the message.
-   * @returns {RemoteValue} The data.
    */
-  get data() {
+  get data(): unknown {
     return this._data
   }
 
   /**
    * Gets the source of the message.
-   * @returns {Source} The source.
    */
-  get source() {
+  get source(): Source {
     return this._source
   }
 }
@@ -61,34 +67,31 @@ class Message {
 /**
  * Represents a source object.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-Source.
- * @class
  */
-class Source {
-  constructor(source) {
+export class Source {
+  private readonly _browsingContextId: string | null
+  private readonly _realmId: string
+
+  constructor(source: SourceJson) {
     this._browsingContextId = null
     this._realmId = source.realm
-
     // Browsing context is returned as an optional parameter
     if ('context' in source) {
-      this._browsingContextId = source.context
+      this._browsingContextId = source.context ?? null
     }
   }
 
   /**
    * Get the browsing context ID.
-   * @returns {string|null} The browsing context ID.
    */
-  get browsingContextId() {
+  get browsingContextId(): string | null {
     return this._browsingContextId
   }
 
   /**
    * Get the realm ID.
-   * @returns {string} The realm ID.
    */
-  get realmId() {
+  get realmId(): string {
     return this._realmId
   }
 }
-
-module.exports = { Message, Source }

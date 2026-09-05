@@ -15,26 +15,46 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { PrimitiveType, NonPrimitiveType, RemoteType, SpecialNumberType } = require('./protocolType')
+import { PrimitiveType, NonPrimitiveType, RemoteType, SpecialNumberType } from './protocolType'
+import { isObject } from '../lib/util'
 
 const TYPE_CONSTANT = 'type'
 const VALUE_CONSTANT = 'value'
+
 /**
  * Represents the types of remote reference.
- * @enum {string}
  */
-const RemoteReferenceType = {
+export const RemoteReferenceType = {
   HANDLE: 'handle',
   SHARED_ID: 'sharedId',
+} as const
+
+export type RemoteReferenceType = (typeof RemoteReferenceType)[keyof typeof RemoteReferenceType]
+
+/** A regular expression's serialised form. */
+export interface RegExpJson {
+  pattern: string
+  flags: string
+}
+
+/** A script.RemoteValue as received on the wire. */
+export interface RemoteValueJson {
+  type?: string
+  handle?: string
+  internalId?: string
+  value?: unknown
+  sharedId?: string
 }
 
 /**
  * Represents a local value with a specified type and optional value.
- * @class
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-LocalValue
  */
-class LocalValue {
-  constructor(type, value = null) {
+export class LocalValue {
+  type: string
+  declare value?: unknown
+
+  constructor(type: string, value: unknown = null) {
     if (type === PrimitiveType.UNDEFINED || type === PrimitiveType.NULL) {
       this.type = type
     } else {
@@ -45,97 +65,80 @@ class LocalValue {
 
   /**
    * Creates a new LocalValue object with a string value.
-   *
-   * @param {string} value - The string value to be stored in the LocalValue object.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The string value to be stored in the LocalValue object.
    */
-  static createStringValue(value) {
+  static createStringValue(value: string): LocalValue {
     return new LocalValue(PrimitiveType.STRING, value)
   }
 
   /**
    * Creates a new LocalValue object with a number value.
-   *
-   * @param {number} value - The number value.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The number value.
    */
-  static createNumberValue(value) {
+  static createNumberValue(value: number): LocalValue {
     return new LocalValue(PrimitiveType.NUMBER, value)
   }
 
   /**
    * Creates a new LocalValue object with a special number value.
-   *
-   * @param {number} value - The value of the special number.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The value of the special number.
    */
-  static createSpecialNumberValue(value) {
+  static createSpecialNumberValue(value: SpecialNumberType): LocalValue {
     return new LocalValue(PrimitiveType.SPECIAL_NUMBER, value)
   }
 
   /**
    * Creates a new LocalValue object with an undefined value.
-   * @returns {LocalValue} - The created LocalValue object.
    */
-  static createUndefinedValue() {
+  static createUndefinedValue(): LocalValue {
     return new LocalValue(PrimitiveType.UNDEFINED)
   }
 
   /**
    * Creates a new LocalValue object with a null value.
-   * @returns {LocalValue} - The created LocalValue object.
    */
-  static createNullValue() {
+  static createNullValue(): LocalValue {
     return new LocalValue(PrimitiveType.NULL)
   }
 
   /**
    * Creates a new LocalValue object with a boolean value.
-   *
-   * @param {boolean} value - The boolean value.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The boolean value.
    */
-  static createBooleanValue(value) {
+  static createBooleanValue(value: boolean): LocalValue {
     return new LocalValue(PrimitiveType.BOOLEAN, value)
   }
 
   /**
    * Creates a new LocalValue object with a BigInt value.
-   *
-   * @param {BigInt} value - The BigInt value.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The BigInt value.
    */
-  static createBigIntValue(value) {
+  static createBigIntValue(value: bigint | string): LocalValue {
     return new LocalValue(PrimitiveType.BIGINT, value)
   }
 
   /**
    * Creates a new LocalValue object with an array.
-   *
-   * @param {Array} value - The array.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The array.
    */
-  static createArrayValue(value) {
+  static createArrayValue(value: unknown[]): LocalValue {
     return new LocalValue(NonPrimitiveType.ARRAY, value)
   }
 
   /**
    * Creates a new LocalValue object with date value.
-   *
-   * @param {string} value - The date.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The date.
    */
-  static createDateValue(value) {
+  static createDateValue(value: Date | string): LocalValue {
     return new LocalValue(NonPrimitiveType.DATE, value)
   }
 
   /**
    * Creates a new LocalValue object of map value.
-   * @param {Map} map - The map.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param map - The map.
    */
-  static createMapValue(map) {
-    let value = []
+  static createMapValue(map: object): LocalValue {
+    const value: [string, unknown][] = []
     Object.entries(map).forEach((entry) => {
       value.push(entry)
     })
@@ -144,12 +147,10 @@ class LocalValue {
 
   /**
    * Creates a new LocalValue object from the passed object.
-   *
-   * @param {Object} object - The object.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param object - The object.
    */
-  static createObjectValue(object) {
-    let value = []
+  static createObjectValue(object: object): LocalValue {
+    const value: [string, unknown][] = []
     Object.entries(object).forEach((entry) => {
       value.push(entry)
     })
@@ -158,40 +159,34 @@ class LocalValue {
 
   /**
    * Creates a new LocalValue object of regular expression value.
-   *
-   * @param {string} value - The value of the regular expression.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The value of the regular expression.
    */
-  static createRegularExpressionValue(value) {
+  static createRegularExpressionValue(value: RegExpJson): LocalValue {
     return new LocalValue(NonPrimitiveType.REGULAR_EXPRESSION, value)
   }
 
   /**
    * Creates a new LocalValue object with the specified value.
-   * @param {Set} value - The value to be set.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The value to be set.
    */
-  static createSetValue(value) {
+  static createSetValue(value: unknown[]): LocalValue {
     return new LocalValue(NonPrimitiveType.SET, value)
   }
 
   /**
    * Creates a new LocalValue object with the given channel value
-   *
-   * @param {ChannelValue} value - The channel value.
-   * @returns {LocalValue} - The created LocalValue object.
+   * @param value - The channel value.
    */
-  static createChannelValue(value) {
+  static createChannelValue(value: ChannelValue): LocalValue {
     return new LocalValue(NonPrimitiveType.CHANNEL, value)
   }
 
-  static createReferenceValue(handle, sharedId) {
+  static createReferenceValue(handle: string, sharedId: string): ReferenceValue {
     return new ReferenceValue(handle, sharedId)
   }
 
-  static getArgument(argument) {
-    let localValue = null
-
+  static getArgument(argument: unknown): LocalValue | null {
+    let localValue: LocalValue | null = null
     if (
       argument === SpecialNumberType.NAN ||
       argument === SpecialNumberType.MINUS_ZERO ||
@@ -202,25 +197,23 @@ class LocalValue {
       return localValue
     }
 
-    const type = typeof argument
-
-    switch (type) {
-      case PrimitiveType.STRING:
+    switch (typeof argument) {
+      case 'string':
         localValue = LocalValue.createStringValue(argument)
         break
-      case PrimitiveType.NUMBER:
+      case 'number':
         localValue = LocalValue.createNumberValue(argument)
         break
-      case PrimitiveType.BOOLEAN:
+      case 'boolean':
         localValue = LocalValue.createBooleanValue(argument)
         break
-      case PrimitiveType.BIGINT:
+      case 'bigint':
         localValue = LocalValue.createBigIntValue(argument.toString())
         break
-      case PrimitiveType.UNDEFINED:
+      case 'undefined':
         localValue = LocalValue.createUndefinedValue()
         break
-      case NonPrimitiveType.OBJECT:
+      case 'object':
         if (argument === null) {
           localValue = LocalValue.createNullValue()
           break
@@ -228,8 +221,7 @@ class LocalValue {
         if (argument instanceof Date) {
           localValue = LocalValue.createDateValue(argument)
         } else if (argument instanceof Map) {
-          const map = []
-
+          const map: [unknown, LocalValue | null][] = []
           argument.forEach((value, key) => {
             let objectKey
             if (typeof key === 'string') {
@@ -242,13 +234,13 @@ class LocalValue {
           })
           localValue = new LocalValue(NonPrimitiveType.MAP, map)
         } else if (argument instanceof Set) {
-          const set = []
+          const set: (LocalValue | null)[] = []
           argument.forEach((value) => {
             set.push(LocalValue.getArgument(value))
           })
           localValue = LocalValue.createSetValue(set)
         } else if (argument instanceof Array) {
-          const arr = []
+          const arr: (LocalValue | null)[] = []
           argument.forEach((value) => {
             arr.push(LocalValue.getArgument(value))
           })
@@ -259,7 +251,7 @@ class LocalValue {
             flags: argument.flags,
           })
         } else {
-          let value = []
+          const value: [LocalValue | null, LocalValue | null][] = []
           Object.entries(argument).forEach((entry) => {
             value.push([LocalValue.getArgument(entry[0]), LocalValue.getArgument(entry[1])])
           })
@@ -271,8 +263,8 @@ class LocalValue {
     return localValue
   }
 
-  asMap() {
-    let toReturn = {}
+  asMap(): Record<string, unknown> {
+    const toReturn: Record<string, unknown> = {}
     toReturn[TYPE_CONSTANT] = this.type
 
     if (!(this.type === PrimitiveType.NULL || this.type === PrimitiveType.UNDEFINED)) {
@@ -285,18 +277,23 @@ class LocalValue {
 /**
  * Represents a remote value.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-RemoteValue.
- * @class
  */
-class RemoteValue {
-  constructor(remoteValue) {
+export class RemoteValue {
+  type: string | null
+  handle: string | null
+  internalId: string | null
+  value: unknown
+  sharedId: string | null
+
+  constructor(remoteValue: RemoteValueJson) {
     this.type = null
     this.handle = null
     this.internalId = null
     this.value = null
     this.sharedId = null
 
-    if ('type' in remoteValue) {
-      const typeString = remoteValue['type']
+    if (typeof remoteValue.type === 'string') {
+      const typeString = remoteValue.type
       if (PrimitiveType.findByName(typeString) != null) {
         this.type = PrimitiveType.findByName(typeString)
       } else if (NonPrimitiveType.findByName(typeString) != null) {
@@ -307,19 +304,19 @@ class RemoteValue {
     }
 
     if ('handle' in remoteValue) {
-      this.handle = remoteValue['handle']
+      this.handle = remoteValue.handle ?? null
     }
 
     if ('internalId' in remoteValue) {
-      this.internalId = remoteValue['internalId']
+      this.internalId = remoteValue.internalId ?? null
     }
 
     if ('value' in remoteValue) {
-      this.value = remoteValue['value']
+      this.value = remoteValue.value
     }
 
     if ('sharedId' in remoteValue) {
-      this.sharedId = remoteValue['sharedId']
+      this.sharedId = remoteValue.sharedId ?? null
     }
 
     if (this.value != null) {
@@ -327,11 +324,11 @@ class RemoteValue {
     }
   }
 
-  deserializeValue(value, type) {
-    if (type === NonPrimitiveType.OBJECT) {
+  deserializeValue(value: unknown, type: string | null): unknown {
+    if (type === NonPrimitiveType.OBJECT && Array.isArray(value)) {
       return Object.fromEntries(value)
-    } else if (type === NonPrimitiveType.REGULAR_EXPRESSION) {
-      return new RegExpValue(value.pattern, value.flags)
+    } else if (type === NonPrimitiveType.REGULAR_EXPRESSION && isObject(value) && typeof value.pattern === 'string') {
+      return new RegExpValue(value.pattern, typeof value.flags === 'string' ? value.flags : null)
     }
     return value
   }
@@ -341,16 +338,16 @@ class RemoteValue {
  * Represents a reference value in the protocol.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-RemoteReference.
  */
-class ReferenceValue {
-  #handle
-  #sharedId
+export class ReferenceValue {
+  #handle?: string
+  #sharedId?: string
 
   /**
    * Constructs a new ReferenceValue object.
-   * @param {string} handle - The handle value.
-   * @param {string} sharedId - The shared ID value.
+   * @param handle - The handle value.
+   * @param sharedId - The shared ID value.
    */
-  constructor(handle, sharedId) {
+  constructor(handle: string, sharedId: string) {
     if (handle === RemoteReferenceType.HANDLE) {
       this.#handle = sharedId
     } else if (handle === RemoteReferenceType.SHARED_ID) {
@@ -361,12 +358,11 @@ class ReferenceValue {
     }
   }
 
-  asMap() {
-    const toReturn = {}
+  asMap(): Record<string, string> {
+    const toReturn: Record<string, string> = {}
     if (this.#handle != null) {
       toReturn[RemoteReferenceType.HANDLE] = this.#handle
     }
-
     if (this.#sharedId != null) {
       toReturn[RemoteReferenceType.SHARED_ID] = this.#sharedId
     }
@@ -379,13 +375,16 @@ class ReferenceValue {
  * Represents a regular expression value.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-LocalValue.
  */
-class RegExpValue {
+export class RegExpValue {
+  pattern: string
+  flags: string | null
+
   /**
    * Constructs a new RegExpValue object.
-   * @param {string} pattern - The pattern of the regular expression.
-   * @param {string|null} [flags=null] - The flags of the regular expression.
+   * @param pattern - The pattern of the regular expression.
+   * @param flags - The flags of the regular expression.
    */
-  constructor(pattern, flags = null) {
+  constructor(pattern: string, flags: string | null = null) {
     this.pattern = pattern
     this.flags = flags
   }
@@ -395,15 +394,23 @@ class RegExpValue {
  * Represents serialization options.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-SerializationOptions.
  */
-class SerializationOptions {
+export class SerializationOptions {
+  private readonly _maxDomDepth: number
+  private readonly _maxObjectDepth: number | null
+  private readonly _includeShadowTree: 'none' | 'open' | 'all'
+
   /**
    * Constructs a new instance of SerializationOptions.
-   * @param {number} [maxDomDepth=0] - The maximum depth to serialize the DOM.
-   * @param {number|null} [maxObjectDepth=null] - The maximum depth to serialize objects.
-   * @param {'none'|'open'|'all'} [includeShadowTree='none'] - The inclusion level of the shadow tree.
+   * @param maxDomDepth - The maximum depth to serialize the DOM.
+   * @param maxObjectDepth - The maximum depth to serialize objects.
+   * @param includeShadowTree - The inclusion level of the shadow tree.
    * @throws {Error} If the `includeShadowTree` value is not one of 'none', 'open', or 'all'.
    */
-  constructor(maxDomDepth = 0, maxObjectDepth = null, includeShadowTree = 'none') {
+  constructor(
+    maxDomDepth = 0,
+    maxObjectDepth: number | null = null,
+    includeShadowTree: 'none' | 'open' | 'all' = 'none',
+  ) {
     this._maxDomDepth = maxDomDepth
     this._maxObjectDepth = maxObjectDepth
 
@@ -417,12 +424,18 @@ class SerializationOptions {
 /**
  * Represents a channel value.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-ChannelValue.
- * @class
  */
-class ChannelValue {
-  constructor(channel, options = undefined, resultOwnership = undefined) {
-    this.channel = channel
+export class ChannelValue {
+  channel: string
+  declare options?: SerializationOptions
+  declare resultOwnership?: 'root' | 'none'
 
+  constructor(
+    channel: string,
+    options: SerializationOptions | undefined = undefined,
+    resultOwnership: 'root' | 'none' | undefined = undefined,
+  ) {
+    this.channel = channel
     if (options !== undefined) {
       if (options instanceof SerializationOptions) {
         this.options = options
@@ -439,14 +452,4 @@ class ChannelValue {
       }
     }
   }
-}
-
-module.exports = {
-  ChannelValue,
-  LocalValue,
-  RemoteValue,
-  ReferenceValue,
-  RemoteReferenceType,
-  RegExpValue,
-  SerializationOptions,
 }

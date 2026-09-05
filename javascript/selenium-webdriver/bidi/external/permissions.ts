@@ -15,39 +15,67 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const PermissionState = Object.freeze({
+import type BiDi from '../index'
+import type { Capabilities } from '../../lib/capabilities'
+
+export const PermissionState = Object.freeze({
   GRANTED: 'granted',
   DENIED: 'denied',
   PROMPT: 'prompt',
-})
+} as const)
+
+export type PermissionState = (typeof PermissionState)[keyof typeof PermissionState]
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface PermissionDriver {
+  getCapabilities(): Promise<Capabilities>
+  getBidi(): Promise<BiDi>
+}
+
+/** The permissions.setPermission command payload. */
+interface SetPermissionCommand {
+  method: 'permissions.setPermission'
+  params: {
+    descriptor: unknown
+    state: PermissionState
+    origin: string
+    userContext?: string
+  }
+}
 
 class Permission {
-  constructor(driver) {
+  private readonly _driver: PermissionDriver
+  bidi!: BiDi
+
+  constructor(driver: PermissionDriver) {
     this._driver = driver
   }
 
-  async init() {
+  async init(): Promise<void> {
     if (!(await this._driver.getCapabilities()).get('webSocketUrl')) {
       throw Error('WebDriver instance must support BiDi protocol')
     }
-
     this.bidi = await this._driver.getBidi()
   }
 
   /**
    * Sets a permission state for a given permission descriptor.
-   * @param {Object} permissionDescriptor The permission descriptor.
-   * @param {string} state The permission state (granted, denied, prompt).
-   * @param {string} origin The origin for which the permission is set.
-   * @param {string} [userContext] The user context id (optional).
-   * @returns {Promise<void>}
+   * @param permissionDescriptor The permission descriptor.
+   * @param state The permission state (granted, denied, prompt).
+   * @param origin The origin for which the permission is set.
+   * @param userContext The user context id (optional).
    */
-  async setPermission(permissionDescriptor, state, origin, userContext = null) {
-    if (!Object.values(PermissionState).includes(state)) {
+  async setPermission(
+    permissionDescriptor: unknown,
+    state: PermissionState,
+    origin: string,
+    userContext: string | null = null,
+  ): Promise<void> {
+    if (!Object.values(PermissionState).some((allowed) => allowed === state)) {
       throw new Error(`Invalid permission state. Must be one of: ${Object.values(PermissionState).join(', ')}`)
     }
 
-    const command = {
+    const command: SetPermissionCommand = {
       method: 'permissions.setPermission',
       params: {
         descriptor: permissionDescriptor,
@@ -64,10 +92,8 @@ class Permission {
   }
 }
 
-async function getPermissionInstance(driver) {
-  let instance = new Permission(driver)
+export async function getPermissionInstance(driver: PermissionDriver): Promise<Permission> {
+  const instance = new Permission(driver)
   await instance.init()
   return instance
 }
-
-module.exports = { getPermissionInstance, PermissionState }
