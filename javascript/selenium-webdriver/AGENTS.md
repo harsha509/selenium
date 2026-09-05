@@ -8,6 +8,8 @@
 
 ## Build model
 
+See `TS_MIGRATION.md` for the migration status, compatibility checks and remaining work.
+
 - `ts_project(name = "ts-src")` in `BUILD.bazel` compiles every `*.ts` in place (`lib/foo.ts` -> `lib/foo.js` + `lib/foo.d.ts`), so deep imports such as `require('selenium-webdriver/lib/foo')` keep working.
 - Compiled output goes into the npm package only; do not commit generated `.js` or `.d.ts` next to `.ts` sources.
 - `tsconfig.json`: `strict`, `module: nodenext`, target `es2022`. Lint runs typescript-eslint over `**/*.ts`; prettier covers both.
