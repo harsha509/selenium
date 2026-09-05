@@ -15,6 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { RemoteValue } from './protocolValue'
+import type { RealmInfo, WindowRealmInfo } from './realmInfo'
+
+/** Anything that serialises itself for the wire: a LocalValue, ReferenceValue or ArgumentValue. */
+export interface ScriptArgument {
+  asMap(): Record<string, unknown>
+}
+
+/** What a subscribed script event callback receives. */
+export type ScriptEventData = Message | WindowRealmInfo | RealmInfo | string | null
+
+/** A subscribed script event handler. */
+export type ScriptCallback = (event: ScriptEventData) => void | Promise<void>
+
 /** A script.Source as received on the wire. */
 export interface SourceJson {
   realm: string
@@ -27,7 +41,7 @@ export interface SourceJson {
  */
 export class Message {
   private readonly _channel: string
-  private readonly _data: unknown
+  private readonly _data: RemoteValue
   private readonly _source: Source
 
   /**
@@ -36,7 +50,7 @@ export class Message {
    * @param data - The data contained in the message.
    * @param source - The source of the message.
    */
-  constructor(channel: string, data: unknown, source: Source) {
+  constructor(channel: string, data: RemoteValue, source: Source) {
     this._channel = channel
     this._data = data
     this._source = source
@@ -52,7 +66,7 @@ export class Message {
   /**
    * Gets the data contained in the message.
    */
-  get data(): unknown {
+  get data(): RemoteValue {
     return this._data
   }
 

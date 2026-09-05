@@ -15,17 +15,32 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { Network: getNetwork } = require('../bidi/network')
-const { InterceptPhase } = require('../bidi/interceptPhase')
-const { AddInterceptParameters } = require('../bidi/addInterceptParameters')
+import type BiDi from '../bidi/index'
+import { Network as getNetwork } from '../bidi/network'
+import { InterceptPhase } from '../bidi/interceptPhase'
+import { AddInterceptParameters } from '../bidi/addInterceptParameters'
+
+type NetworkInstance = Awaited<ReturnType<typeof getNetwork>>
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface NetworkDriver {
+  getBidi(): Promise<BiDi>
+}
+
+/** Credentials to answer an auth challenge whose URL matches `uri`. */
+interface AuthHandler {
+  username: string
+  password: string
+  uri: string
+}
 
 class Network {
   #callbackId = 0
-  #driver
-  #network
-  #authHandlers = new Map()
+  #driver: NetworkDriver
+  #network?: NetworkInstance
+  #authHandlers = new Map<number, AuthHandler>()
 
-  constructor(driver) {
+  constructor(driver: NetworkDriver) {
     this.#driver = driver
   }
 
@@ -35,45 +50,49 @@ class Network {
   // However, that pattern does not allow chaining the methods as we would like the user to use it.
   // Since it involves awaiting to get the instance and then another await to call the method.
   // Using this allows the user to do this "await driver.network.addAuthenticationHandler(callback)"
-  async #init() {
+  async #init(): Promise<void> {
     if (this.#network !== undefined) {
       return
     }
-    this.#network = await getNetwork(this.#driver)
+    const network = await getNetwork(this.#driver)
+    this.#network = network
 
-    await this.#network.addIntercept(new AddInterceptParameters(InterceptPhase.AUTH_REQUIRED))
+    await network.addIntercept(new AddInterceptParameters(InterceptPhase.AUTH_REQUIRED))
 
-    await this.#network.authRequired(async (event) => {
+    await network.authRequired(async (event) => {
+      if (event === null) {
+        return
+      }
       const requestId = event.request.request
       const uri = event.request.url
       const credentials = this.getAuthCredentials(uri)
       if (credentials !== null) {
-        await this.#network.continueWithAuth(requestId, credentials.username, credentials.password)
+        await network.continueWithAuth(requestId, credentials.username, credentials.password)
         return
       }
 
-      await this.#network.continueWithAuthNoCredentials(requestId)
+      await network.continueWithAuthNoCredentials(requestId)
     })
   }
 
-  getAuthCredentials(uri) {
-    for (let [, value] of this.#authHandlers) {
+  getAuthCredentials(uri: string): AuthHandler | null {
+    for (const [, value] of this.#authHandlers) {
       if (uri.match(value.uri)) {
         return value
       }
     }
     return null
   }
-  async addAuthenticationHandler(username, password, uri = '//') {
+
+  async addAuthenticationHandler(username: string, password: string, uri = '//'): Promise<number> {
     await this.#init()
 
     const id = this.#callbackId++
-
     this.#authHandlers.set(id, { username, password, uri })
     return id
   }
 
-  async removeAuthenticationHandler(id) {
+  async removeAuthenticationHandler(id: number): Promise<void> {
     await this.#init()
 
     if (this.#authHandlers.has(id)) {
@@ -83,9 +102,9 @@ class Network {
     }
   }
 
-  async clearAuthenticationHandlers() {
+  async clearAuthenticationHandlers(): Promise<void> {
     this.#authHandlers.clear()
   }
 }
 
-module.exports = Network
+export = Network

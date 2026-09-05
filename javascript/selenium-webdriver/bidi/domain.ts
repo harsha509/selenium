@@ -24,10 +24,10 @@ export interface BidiCommand {
   params?: unknown
 }
 
-/** A BiDi command response as received on the wire. */
-export interface BidiResponse {
+/** A BiDi command response as received on the wire; `T` is the caller-asserted result shape. */
+export interface BidiResponse<T = unknown> {
   id: number
-  result?: unknown
+  result: T
   error?: string
   message?: string
 }
@@ -40,7 +40,7 @@ export interface Subscription {
 
 /** What a domain needs from a connection: command round-trips and event callbacks. */
 export interface BidiTransport {
-  send(command: BidiCommand): Promise<BidiResponse>
+  send<T = unknown>(command: BidiCommand): Promise<BidiResponse<T>>
   addCallback(method: string, handler: (params: unknown) => void): Promise<Subscription>
 }
 

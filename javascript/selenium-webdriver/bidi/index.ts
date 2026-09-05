@@ -275,7 +275,7 @@ class Index extends EventEmitter implements BidiTransport {
    * Sends a bidi request
    * @param params
    */
-  async send(params: BidiCommand): Promise<BidiResponse> {
+  async send<T = unknown>(params: BidiCommand): Promise<BidiResponse<T>> {
     if (this._closed) {
       throw new Error('BiDi connection is closed')
     }
@@ -293,7 +293,7 @@ class Index extends EventEmitter implements BidiTransport {
 
     this._ws.send(JSON.stringify({ id, ...params }))
 
-    return new Promise((resolve, reject) => {
+    const response = await new Promise<BidiResponse>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         this._pending.delete(id)
         reject(new Error(`Request with id ${id} timed out`))
@@ -301,6 +301,8 @@ class Index extends EventEmitter implements BidiTransport {
 
       this._pending.set(id, { resolve, reject, timeoutId })
     })
+    // T is the caller's assertion about `result`, as with Capabilities#get.
+    return response as BidiResponse<T>
   }
 
   /**
