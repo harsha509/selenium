@@ -20,47 +20,59 @@
  * public API and provides convenience assessors to certain sub-modules.
  */
 
-'use strict'
+import { createRequire } from 'node:module'
+import * as _http from './http/index'
+import * as by from './lib/by'
+import * as capabilities from './lib/capabilities'
+import type { CapabilitiesLike, UserPromptHandler } from './lib/capabilities'
+import * as chrome from './chrome'
+import * as edge from './edge'
+import * as error from './lib/error'
+import * as firefox from './firefox'
+import * as ie from './ie'
+import * as input from './lib/input'
+import * as logging from './lib/logging'
+import * as color from './lib/color'
+import * as promise from './lib/promise'
+import type * as proxy from './lib/proxy'
+import * as remote from './remote/index'
+import * as safari from './safari'
+import * as session from './lib/session'
+import * as until from './lib/until'
+import * as webdriver from './lib/webdriver'
+import * as select from './lib/select'
+import LogInspector from './bidi/logInspector'
+import BrowsingContext from './bidi/browsingContext'
+import BrowsingContextInspector from './bidi/browsingContextInspector'
+import ScriptManager from './bidi/scriptManager'
+import NetworkInspector from './bidi/networkInspector'
 
-const _http = require('./http')
-const by = require('./lib/by')
-const capabilities = require('./lib/capabilities')
-const chrome = require('./chrome')
-const edge = require('./edge')
-const error = require('./lib/error')
-const firefox = require('./firefox')
-const ie = require('./ie')
-const input = require('./lib/input')
-const logging = require('./lib/logging')
-const color = require('./lib/color')
-const promise = require('./lib/promise')
-const remote = require('./remote')
-const safari = require('./safari')
-const session = require('./lib/session')
-const until = require('./lib/until')
-const webdriver = require('./lib/webdriver')
-const select = require('./lib/select')
-const LogInspector = require('./bidi/logInspector')
-const BrowsingContext = require('./bidi/browsingContext')
-const BrowsingContextInspector = require('./bidi/browsingContextInspector')
-const ScriptManager = require('./bidi/scriptManager')
-const NetworkInspector = require('./bidi/networkInspector')
-const version = require('./package.json').version
+const version: string = createRequire(__filename)('./package.json').version
 
 const Browser = capabilities.Browser
 const Capabilities = capabilities.Capabilities
 const Capability = capabilities.Capability
 const WebDriver = webdriver.WebDriver
 
-let seleniumServer
+/**
+ * A WebDriver subclass as the {@link Builder} drives it: constructible from a
+ * session and creatable through its static factory. TS mixins require the
+ * `any[]` rest constructor.
+ */
+interface DriverClass {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  new (...args: any[]): webdriver.WebDriver
+  createSession(...args: unknown[]): webdriver.WebDriver
+}
+
+let seleniumServer: remote.SeleniumServer | undefined
 
 /**
  * Starts an instance of the Selenium server if not yet running.
- * @param {string} jar Path to the server jar to use.
- * @return {!Promise<string>} A promise for the server's
- *     address once started.
+ * @param jar Path to the server jar to use.
+ * @return A promise for the server's address once started.
  */
-function startSeleniumServer(jar) {
+function startSeleniumServer(jar: string): Promise<string> {
   if (!seleniumServer) {
     seleniumServer = new remote.SeleniumServer(jar)
   }
@@ -78,14 +90,10 @@ function startSeleniumServer(jar) {
  * original method on the WebDriver prototype directly. This is used only when
  * the builder creates a Chrome or Firefox instance that communicates with a
  * remote end (and thus, support for remote file detectors is unknown).
- *
- * @param {function(new: webdriver.WebDriver, ...?)} ctor
- * @return {function(new: webdriver.WebDriver, ...?)}
  */
-function ensureFileDetectorsAreEnabled(ctor) {
+function ensureFileDetectorsAreEnabled<T extends DriverClass>(ctor: T): T {
   return class extends ctor {
-    /** @param {input.FileDetector} detector */
-    setFileDetector(detector) {
+    setFileDetector(detector: input.FileDetector | null): void {
       webdriver.WebDriver.prototype.setFileDetector.call(this, detector)
     }
   }
@@ -102,56 +110,43 @@ function ensureFileDetectorsAreEnabled(ctor) {
  *
  * If the driver instance fails to resolve (e.g. the session cannot be created),
  * every issued command will fail.
- *
- * @extends {webdriver.IWebDriver}
- * @extends {IThenable<!webdriver.IWebDriver>}
- * @interface
  */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- interface-only class, kept for the runtime export
 class ThenableWebDriver {
-  /** @param {...?} args */
-  static createSession(...args) {} // eslint-disable-line
+  static createSession(..._args: unknown[]): void {}
 }
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+interface ThenableWebDriver extends webdriver.WebDriver, Promise<webdriver.WebDriver> {}
+
+const THENABLE_DRIVERS = new Map<DriverClass, DriverClass>()
 
 /**
- * @const {!Map<function(new: WebDriver, !IThenable<!Session>, ...?),
- *              function(new: ThenableWebDriver, !IThenable<!Session>, ...?)>}
+ * Creates a session through a cached thenable subclass of `ctor`. The cast is
+ * the same assertion trunk made: the subclass instance carries `then`/`catch`.
  */
-const THENABLE_DRIVERS = new Map()
-
-/**
- * @param {function(new: WebDriver, !IThenable<!Session>, ...?)} ctor
- * @param {...?} args
- * @return {!ThenableWebDriver}
- */
-function createDriver(ctor, ...args) {
+function createDriver(ctor: DriverClass, ...args: unknown[]): ThenableWebDriver {
   let thenableWebDriverProxy = THENABLE_DRIVERS.get(ctor)
   if (!thenableWebDriverProxy) {
-    /**
-     * @extends {WebDriver}  // Needed since `ctor` is dynamically typed.
-     * @implements {ThenableWebDriver}
-     */
     thenableWebDriverProxy = class extends ctor {
-      /**
-       * @param {!IThenable<!Session>} session
-       * @param {...?} rest
-       */
-      constructor(session, ...rest) {
-        super(session, ...rest)
+      declare then: Promise<webdriver.WebDriver>['then']
+      declare catch: Promise<webdriver.WebDriver>['catch']
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      constructor(...args: any[]) {
+        super(...args)
+
+        const rest = args.slice(1)
         const pd = this.getSession().then((session) => {
           return new ctor(session, ...rest)
         })
 
-        /** @override */
         this.then = pd.then.bind(pd)
-
-        /** @override */
         this.catch = pd.catch.bind(pd)
       }
     }
     THENABLE_DRIVERS.set(ctor, thenableWebDriverProxy)
   }
-  return thenableWebDriverProxy.createSession(...args)
+  return thenableWebDriverProxy.createSession(...args) as ThenableWebDriver
 }
 
 /**
@@ -194,50 +189,37 @@ function createDriver(ctor, ...args) {
  *     node mytest.js
  */
 class Builder {
+  private readonly log_: logging.Logger
+  private url_: string
+  private proxy_: string | null
+  private capabilities_: capabilities.Capabilities
+  private chromeOptions_: chrome.Options | null
+  private chromeService_: chrome.ServiceBuilder | null
+  private firefoxOptions_: firefox.Options | null
+  private firefoxService_: firefox.ServiceBuilder | null
+  private ieOptions_: ie.Options | null
+  private ieService_: ie.ServiceBuilder | null
+  private safariOptions_: safari.Options | null
+  private edgeOptions_: edge.Options | null
+  private edgeService_: edge.ServiceBuilder | null
+  private ignoreEnv_: boolean
+  private agent_: _http.Agent | null
+
   constructor() {
-    /** @private @const */
     this.log_ = logging.getLogger(`${logging.Type.DRIVER}.Builder`)
-
-    /** @private {string} */
     this.url_ = ''
-
-    /** @private {?string} */
     this.proxy_ = null
-
-    /** @private {!Capabilities} */
     this.capabilities_ = new Capabilities()
-
-    /** @private {chrome.Options} */
     this.chromeOptions_ = null
-
-    /** @private {chrome.ServiceBuilder} */
     this.chromeService_ = null
-
-    /** @private {firefox.Options} */
     this.firefoxOptions_ = null
-
-    /** @private {firefox.ServiceBuilder} */
     this.firefoxService_ = null
-
-    /** @private {ie.Options} */
     this.ieOptions_ = null
-
-    /** @private {ie.ServiceBuilder} */
     this.ieService_ = null
-
-    /** @private {safari.Options} */
     this.safariOptions_ = null
-
-    /** @private {edge.Options} */
     this.edgeOptions_ = null
-
-    /** @private {remote.DriverService.Builder} */
     this.edgeService_ = null
-
-    /** @private {boolean} */
     this.ignoreEnv_ = false
-
-    /** @private {http.Agent} */
     this.agent_ = null
   }
 
@@ -245,9 +227,9 @@ class Builder {
    * Configures this builder to ignore any environment variable overrides and to
    * only use the configuration specified through this instance's API.
    *
-   * @return {!Builder} A self reference.
+   * @return A self reference.
    */
-  disableEnvironmentOverrides() {
+  disableEnvironmentOverrides(): this {
     this.ignoreEnv_ = true
     return this
   }
@@ -261,19 +243,18 @@ class Builder {
    * As an alternative to this method, you may also set the
    * `SELENIUM_REMOTE_URL` environment variable.
    *
-   * @param {string} url The URL of a remote server to use.
-   * @return {!Builder} A self reference.
+   * @param url The URL of a remote server to use.
+   * @return A self reference.
    */
-  usingServer(url) {
+  usingServer(url: string): this {
     this.url_ = url
     return this
   }
 
   /**
-   * @return {string} The URL of the WebDriver server this instance is
-   *     configured to use.
+   * @return The URL of the WebDriver server this instance is configured to use.
    */
-  getServerUrl() {
+  getServerUrl(): string {
     return this.url_
   }
 
@@ -282,19 +263,19 @@ class Builder {
    * If this method is never called, the Builder will create a connection
    * without a proxy.
    *
-   * @param {string} proxy The URL of a proxy to use.
-   * @return {!Builder} A self reference.
+   * @param proxy The URL of a proxy to use.
+   * @return A self reference.
    */
-  usingWebDriverProxy(proxy) {
+  usingWebDriverProxy(proxy: string): this {
     this.proxy_ = proxy
     return this
   }
 
   /**
-   * @return {?string} The URL of the proxy server to use for the WebDriver's
+   * @return The URL of the proxy server to use for the WebDriver's
    *    HTTP connections, or `null` if not set.
    */
-  getWebDriverProxy() {
+  getWebDriverProxy(): string | null {
     return this.proxy_
   }
 
@@ -302,18 +283,18 @@ class Builder {
    * Sets the http agent to use for each request.
    * If this method is not called, the Builder will use http.globalAgent by default.
    *
-   * @param {http.Agent} agent The agent to use for each request.
-   * @return {!Builder} A self reference.
+   * @param agent The agent to use for each request.
+   * @return A self reference.
    */
-  usingHttpAgent(agent) {
+  usingHttpAgent(agent: _http.Agent): this {
     this.agent_ = agent
     return this
   }
 
   /**
-   * @return {http.Agent} The http agent used for each request
+   * @return The http agent used for each request
    */
-  getHttpAgent() {
+  getHttpAgent(): _http.Agent | null {
     return this.agent_
   }
 
@@ -322,11 +303,10 @@ class Builder {
    *
    * Sets the desired capabilities when requesting a new session. This will
    * overwrite any previously set capabilities.
-   * @param {!(Object|Capabilities)} capabilities The desired capabilities for
-   *     a new session.
-   * @return {!Builder} A self reference.
+   * @param capabilities The desired capabilities for a new session.
+   * @return A self reference.
    */
-  withCapabilities(capabilities) {
+  withCapabilities(capabilities: CapabilitiesLike): this {
     this.capabilities_ = new Capabilities(capabilities)
     return this
   }
@@ -334,9 +314,9 @@ class Builder {
   /**
    * Returns the base set of capabilities this instance is currently configured
    * to use.
-   * @return {!Capabilities} The current capabilities for this builder.
+   * @return The current capabilities for this builder.
    */
-  getCapabilities() {
+  getCapabilities(): capabilities.Capabilities {
     return this.capabilities_
   }
 
@@ -344,11 +324,11 @@ class Builder {
    * Sets the desired capability when requesting a new session.
    * If there is already a capability named key, its value will be overwritten with value.
    * This is a convenience wrapper around builder.getCapabilities().set(key, value) to support Builder method chaining.
-   * @param {string} key The capability key.
-   * @param {*} value The capability value.
-   * @return {!Builder} A self reference.
+   * @param key The capability key.
+   * @param value The capability value.
+   * @return A self reference.
    */
-  setCapability(key, value) {
+  setCapability(key: string, value: unknown): this {
     this.capabilities_.set(key, value)
     return this
   }
@@ -362,15 +342,14 @@ class Builder {
    * environment variable. If set, this environment variable should be of the
    * form `browser[:[version][:platform]]`.
    *
-   * @param {(string|!Browser)} name The name of the target browser;
+   * @param name The name of the target browser;
    *     common defaults are available on the {@link webdriver.Browser} enum.
-   * @param {string=} opt_version A desired version; may be omitted if any
+   * @param opt_version A desired version; may be omitted if any
    *     version should be used.
-   * @param {(string|!capabilities.Platform)=} opt_platform
-   *     The desired platform; may be omitted if any platform may be used.
-   * @return {!Builder} A self reference.
+   * @param opt_platform The desired platform; may be omitted if any platform may be used.
+   * @return A self reference.
    */
-  forBrowser(name, opt_version, opt_platform) {
+  forBrowser(name: string, opt_version?: string, opt_platform?: string): this {
     this.capabilities_.setBrowserName(name)
     if (opt_version) {
       this.capabilities_.setBrowserVersion(opt_version)
@@ -386,10 +365,10 @@ class Builder {
    * Any calls to {@link #withCapabilities} after this function will
    * overwrite these settings.
    *
-   * @param {!./lib/proxy.Config} config The configuration to use.
-   * @return {!Builder} A self reference.
+   * @param config The configuration to use.
+   * @return A self reference.
    */
-  setProxy(config) {
+  setProxy(config: proxy.Config): this {
     this.capabilities_.setProxy(config)
     return this
   }
@@ -397,11 +376,10 @@ class Builder {
   /**
    * Sets the logging preferences for the created session. Preferences may be
    * changed by repeated calls, or by calling {@link #withCapabilities}.
-   * @param {!(./lib/logging.Preferences|Object<string, string>)} prefs The
-   *     desired logging preferences.
-   * @return {!Builder} A self reference.
+   * @param prefs The desired logging preferences.
+   * @return A self reference.
    */
-  setLoggingPrefs(prefs) {
+  setLoggingPrefs(prefs: logging.Preferences | Record<string, string>): this {
     this.capabilities_.setLoggingPrefs(prefs)
     return this
   }
@@ -410,11 +388,11 @@ class Builder {
    * Sets the default action to take with an unexpected alert before returning
    * an error.
    *
-   * @param {?capabilities.UserPromptHandler} behavior The desired behavior.
-   * @return {!Builder} A self reference.
+   * @param behavior The desired behavior.
+   * @return A self reference.
    * @see capabilities.Capabilities#setAlertBehavior
    */
-  setAlertBehavior(behavior) {
+  setAlertBehavior(behavior: UserPromptHandler | null): this {
     this.capabilities_.setAlertBehavior(behavior)
     return this
   }
@@ -425,19 +403,18 @@ class Builder {
    * options will take precedence over those set through
    * {@link #setLoggingPrefs} and {@link #setProxy}, respectively.
    *
-   * @param {!chrome.Options} options The ChromeDriver options to use.
-   * @return {!Builder} A self reference.
+   * @param options The ChromeDriver options to use.
+   * @return A self reference.
    */
-  setChromeOptions(options) {
+  setChromeOptions(options: chrome.Options): this {
     this.chromeOptions_ = options
     return this
   }
 
   /**
-   * @return {chrome.Options} the Chrome specific options currently configured
-   *     for this builder.
+   * @return the Chrome specific options currently configured for this builder.
    */
-  getChromeOptions() {
+  getChromeOptions(): chrome.Options | null {
     return this.chromeOptions_
   }
 
@@ -445,10 +422,10 @@ class Builder {
    * Sets the service builder to use for managing the chromedriver child process
    * when creating new Chrome sessions.
    *
-   * @param {chrome.ServiceBuilder} service the service to use.
-   * @return {!Builder} A self reference.
+   * @param service the service to use.
+   * @return A self reference.
    */
-  setChromeService(service) {
+  setChromeService(service: chrome.ServiceBuilder | null): this {
     if (service && !(service instanceof chrome.ServiceBuilder)) {
       throw TypeError('not a chrome.ServiceBuilder object')
     }
@@ -462,27 +439,25 @@ class Builder {
    * options will take precedence over those set through
    * {@link #setLoggingPrefs} and {@link #setProxy}, respectively.
    *
-   * @param {!firefox.Options} options The FirefoxDriver options to use.
-   * @return {!Builder} A self reference.
+   * @param options The FirefoxDriver options to use.
+   * @return A self reference.
    */
-  setFirefoxOptions(options) {
+  setFirefoxOptions(options: firefox.Options): this {
     this.firefoxOptions_ = options
     return this
   }
 
   /**
-   * @return {firefox.Options} the Firefox specific options currently configured
-   *     for this instance.
+   * @return the Firefox specific options currently configured for this instance.
    */
-  getFirefoxOptions() {
+  getFirefoxOptions(): firefox.Options | null {
     return this.firefoxOptions_
   }
 
   /**
-   * @return {firefox.ServiceBuilder} the Firefox service currently configured
-   *     for this instance.
+   * @return the Firefox service currently configured for this instance.
    */
-  getFirefoxService() {
+  getFirefoxService(): firefox.ServiceBuilder | null {
     return this.firefoxService_
   }
 
@@ -490,10 +465,10 @@ class Builder {
    * Sets the {@link firefox.ServiceBuilder} to use to manage the geckodriver
    * child process when creating Firefox sessions locally.
    *
-   * @param {firefox.ServiceBuilder} service the service to use.
-   * @return {!Builder} a self reference.
+   * @param service the service to use.
+   * @return a self reference.
    */
-  setFirefoxService(service) {
+  setFirefoxService(service: firefox.ServiceBuilder | null): this {
     if (service && !(service instanceof firefox.ServiceBuilder)) {
       throw TypeError('not a firefox.ServiceBuilder object')
     }
@@ -506,10 +481,10 @@ class Builder {
    * created by this builder. Any proxy settings defined on the given options
    * will take precedence over those set through {@link #setProxy}.
    *
-   * @param {!ie.Options} options The IEDriver options to use.
-   * @return {!Builder} A self reference.
+   * @param options The IEDriver options to use.
+   * @return A self reference.
    */
-  setIeOptions(options) {
+  setIeOptions(options: ie.Options): this {
     this.ieOptions_ = options
     return this
   }
@@ -518,10 +493,10 @@ class Builder {
    * Sets the {@link ie.ServiceBuilder} to use to manage the geckodriver
    * child process when creating IE sessions locally.
    *
-   * @param {ie.ServiceBuilder} service the service to use.
-   * @return {!Builder} a self reference.
+   * @param service the service to use.
+   * @return a self reference.
    */
-  setIeService(service) {
+  setIeService(service: ie.ServiceBuilder | null): this {
     this.ieService_ = service
     return this
   }
@@ -532,10 +507,10 @@ class Builder {
    * given options will take precedence over those set through
    * {@link #setProxy}.
    *
-   * @param {!edge.Options} options The MicrosoftEdgeDriver options to use.
-   * @return {!Builder} A self reference.
+   * @param options The MicrosoftEdgeDriver options to use.
+   * @return A self reference.
    */
-  setEdgeOptions(options) {
+  setEdgeOptions(options: edge.Options): this {
     this.edgeOptions_ = options
     return this
   }
@@ -544,10 +519,10 @@ class Builder {
    * Sets the {@link edge.ServiceBuilder} to use to manage the
    * MicrosoftEdgeDriver child process when creating sessions locally.
    *
-   * @param {edge.ServiceBuilder} service the service to use.
-   * @return {!Builder} a self reference.
+   * @param service the service to use.
+   * @return a self reference.
    */
-  setEdgeService(service) {
+  setEdgeService(service: edge.ServiceBuilder | null): this {
     if (service && !(service instanceof edge.ServiceBuilder)) {
       throw TypeError('not a edge.ServiceBuilder object')
     }
@@ -560,19 +535,18 @@ class Builder {
    * created by this builder. Any logging settings defined on the given options
    * will take precedence over those set through {@link #setLoggingPrefs}.
    *
-   * @param {!safari.Options} options The Safari options to use.
-   * @return {!Builder} A self reference.
+   * @param options The Safari options to use.
+   * @return A self reference.
    */
-  setSafariOptions(options) {
+  setSafariOptions(options: safari.Options): this {
     this.safariOptions_ = options
     return this
   }
 
   /**
-   * @return {safari.Options} the Safari specific options currently configured
-   *     for this instance.
+   * @return the Safari specific options currently configured for this instance.
    */
-  getSafariOptions() {
+  getSafariOptions(): safari.Options | null {
     return this.safariOptions_
   }
 
@@ -586,25 +560,28 @@ class Builder {
    * {@linkplain webdriver.WebDriver WebDriver} instance. The promise will be
    * rejected if the remote end fails to create a new session.
    *
-   * @return {!ThenableWebDriver} A new WebDriver instance.
+   * @return A new WebDriver instance.
    * @throws {Error} If the current configuration is invalid.
    */
-  build() {
+  build(): ThenableWebDriver {
     // Create a copy for any changes we may need to make based on the current
     // environment.
     const capabilities = new Capabilities(this.capabilities_)
 
-    let browser
     if (!this.ignoreEnv_ && process.env.SELENIUM_BROWSER) {
       this.log_.fine(`SELENIUM_BROWSER=${process.env.SELENIUM_BROWSER}`)
-      browser = process.env.SELENIUM_BROWSER.split(/:/, 3)
-      capabilities.setBrowserName(browser[0])
+      const browserSpec = process.env.SELENIUM_BROWSER.split(/:/, 3)
+      capabilities.setBrowserName(browserSpec[0])
 
-      browser[1] && capabilities.setBrowserVersion(browser[1])
-      browser[2] && capabilities.setPlatform(browser[2])
+      if (browserSpec[1]) {
+        capabilities.setBrowserVersion(browserSpec[1])
+      }
+      if (browserSpec[2]) {
+        capabilities.setPlatform(browserSpec[2])
+      }
     }
 
-    browser = capabilities.get(Capability.BROWSER_NAME)
+    let browser: unknown = capabilities.get(Capability.BROWSER_NAME)
 
     /**
      * If browser is not defined in forBrowser, check if browserOptions are defined to pick the browserName
@@ -645,7 +622,7 @@ class Builder {
     checkOptions(capabilities, 'safari.options', safari.Options, 'setSafariOptions')
 
     // Check for a remote browser.
-    let url = this.url_
+    let url: string | Promise<string> = this.url_
     if (!this.ignoreEnv_) {
       if (process.env.SELENIUM_REMOTE_URL) {
         this.log_.fine(`SELENIUM_REMOTE_URL=${process.env.SELENIUM_REMOTE_URL}`)
@@ -663,8 +640,8 @@ class Builder {
         capabilities.set('se:remoteUrl', url)
       }
 
-      let client = Promise.resolve(url).then((url) => new _http.HttpClient(url, this.agent_, this.proxy_))
-      let executor = new _http.Executor(client)
+      const client = Promise.resolve(url).then((url) => new _http.HttpClient(url, this.agent_, this.proxy_))
+      const executor = new _http.Executor(client)
 
       if (browser === Browser.CHROME) {
         const driver = ensureFileDetectorsAreEnabled(chrome.Driver)
@@ -681,7 +658,7 @@ class Builder {
     // Check for a native browser.
     switch (browser) {
       case Browser.CHROME: {
-        let service = null
+        let service: remote.DriverService | null = null
         if (this.chromeService_) {
           service = this.chromeService_.build()
         }
@@ -689,7 +666,7 @@ class Builder {
       }
 
       case Browser.FIREFOX: {
-        let service = null
+        let service: remote.DriverService | null = null
         if (this.firefoxService_) {
           service = this.firefoxService_.build()
         }
@@ -697,7 +674,7 @@ class Builder {
       }
 
       case Browser.INTERNET_EXPLORER: {
-        let service = null
+        let service: remote.DriverService | null = null
         if (this.ieService_) {
           service = this.ieService_.build()
         }
@@ -705,7 +682,7 @@ class Builder {
       }
 
       case Browser.EDGE: {
-        let service = null
+        let service: remote.DriverService | null = null
         if (this.edgeService_) {
           service = this.edgeService_.build()
         }
@@ -760,14 +737,15 @@ class Builder {
  *         .setFirefoxOptions(ffo)
  *         .build();
  *
- * @param {!Capabilities} caps
- * @param {string} key
- * @param {function(new: Capabilities)} optionType
- * @param {string} setMethod
  * @throws {error.InvalidArgumentError}
  */
-function checkOptions(caps, key, optionType, setMethod) {
-  let val = caps.get(key)
+function checkOptions(
+  caps: capabilities.Capabilities,
+  key: string,
+  optionType: typeof Capabilities,
+  setMethod: string,
+): void {
+  const val = caps.get(key)
   if (val instanceof optionType) {
     throw new error.InvalidArgumentError(
       'Options class extends Capabilities and should not be set as key ' +
@@ -780,35 +758,22 @@ function checkOptions(caps, key, optionType, setMethod) {
 
 // PUBLIC API
 
-exports.Browser = capabilities.Browser
-exports.Builder = Builder
-exports.Button = input.Button
-exports.By = by.By
-exports.RelativeBy = by.RelativeBy
-exports.withTagName = by.withTagName
-exports.locateWith = by.locateWith
-exports.Capabilities = capabilities.Capabilities
-exports.Capability = capabilities.Capability
-exports.Condition = webdriver.Condition
-exports.FileDetector = input.FileDetector
-exports.Key = input.Key
-exports.Origin = input.Origin
-exports.Session = session.Session
-exports.ThenableWebDriver = ThenableWebDriver
-exports.WebDriver = webdriver.WebDriver
-exports.WebElement = webdriver.WebElement
-exports.WebElementCondition = webdriver.WebElementCondition
-exports.WebElementPromise = webdriver.WebElementPromise
-exports.error = error
-exports.logging = logging
-exports.promise = promise
-exports.until = until
-exports.Select = select.Select
-exports.Color = color.Color
-exports.Colors = color.Colors
-exports.LogInspector = LogInspector
-exports.BrowsingContext = BrowsingContext
-exports.BrowsingContextInspector = BrowsingContextInspector
-exports.ScriptManager = ScriptManager
-exports.NetworkInspector = NetworkInspector
-exports.version = version
+export { Browser, Builder, Capabilities, Capability, ThenableWebDriver, WebDriver, version }
+export const Button = input.Button
+export const By = by.By
+export const RelativeBy = by.RelativeBy
+export const withTagName = by.withTagName
+export const locateWith = by.locateWith
+export const Condition = webdriver.Condition
+export const FileDetector = input.FileDetector
+export const Key = input.Key
+export const Origin = input.Origin
+export const Session = session.Session
+export const WebElement = webdriver.WebElement
+export const WebElementCondition = webdriver.WebElementCondition
+export const WebElementPromise = webdriver.WebElementPromise
+export { error, logging, promise, until }
+export const Select = select.Select
+export const Color = color.Color
+export const Colors = color.Colors
+export { LogInspector, BrowsingContext, BrowsingContextInspector, ScriptManager, NetworkInspector }
