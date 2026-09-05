@@ -15,11 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
+import * as os from 'node:os'
 
-const os = require('node:os')
-
-function getLoInterface() {
+function getLoInterface(): os.NetworkInterfaceInfo[] | null | undefined {
   let name
   if (process.platform === 'darwin') {
     name = 'lo0'
@@ -31,23 +29,19 @@ function getLoInterface() {
 
 /**
  * Queries the system network interfaces for an IP address.
- * @param {boolean} loopback Whether to find a loopback address.
- * @param {string} family The IP family (IPv4 or IPv6). Defaults to IPv4.
- * @return {(string|undefined)} The located IP address or undefined.
+ * @param loopback Whether to find a loopback address.
+ * @param family The IP family (IPv4 or IPv6). Defaults to IPv4.
+ * @return The located IP address or undefined.
  */
-function getIPAddress(loopback, family) {
-  let interfaces
+function getIPAddress(loopback: boolean, family: string): string | undefined {
+  let interfaces: (os.NetworkInterfaceInfo[] | undefined)[] | null = null
   if (loopback) {
     const lo = getLoInterface()
     interfaces = lo ? [lo] : null
   }
-  interfaces = interfaces || os.networkInterfaces()
-  for (let key in interfaces) {
-    if (!Object.prototype.hasOwnProperty.call(interfaces, key)) {
-      continue
-    }
-
-    for (let ipAddress of interfaces[key]) {
+  interfaces = interfaces || Object.values(os.networkInterfaces())
+  for (const addresses of interfaces) {
+    for (const ipAddress of addresses ?? []) {
       if ((ipAddress.family === family || `IPv${ipAddress.family}` === family) && ipAddress.internal === loopback) {
         return ipAddress.address
       }
@@ -60,19 +54,19 @@ function getIPAddress(loopback, family) {
 
 /**
  * Retrieves the external IP address for this host.
- * @param {string=} family The IP family to retrieve. Defaults to "IPv4".
- * @return {(string|undefined)} The IP address or undefined if not available.
+ * @param family The IP family to retrieve. Defaults to "IPv4".
+ * @return The IP address or undefined if not available.
  */
-function getAddress(family = 'IPv4') {
+export function getAddress(family = 'IPv4'): string | undefined {
   return getIPAddress(false, family)
 }
 
 /**
  * Retrieves a loopback address for this machine.
- * @param {string=} family The IP family to retrieve. Defaults to "IPv4".
- * @return {(string|undefined)} The IP address or undefined if not available.
+ * @param family The IP family to retrieve. Defaults to "IPv4".
+ * @return The IP address or undefined if not available.
  */
-function getLoopbackAddress(family = 'IPv4') {
+export function getLoopbackAddress(family = 'IPv4'): string | undefined {
   return getIPAddress(true, family)
 }
 
@@ -80,17 +74,17 @@ function getLoopbackAddress(family = 'IPv4') {
  * Splits a hostport string, e.g. "www.example.com:80", into its component
  * parts.
  *
- * @param {string} hostport The string to split.
- * @return {{host: string, port: ?number}} A host and port. If no port is
- *     present in the argument `hostport`, port is null.
+ * @param hostport The string to split.
+ * @return A host and port. If no port is present in the argument `hostport`,
+ *     port is null.
  */
-function splitHostAndPort(hostport) {
-  let lastIndex = hostport.lastIndexOf(':')
+export function splitHostAndPort(hostport: string): { host: string; port: number | null } {
+  const lastIndex = hostport.lastIndexOf(':')
   if (lastIndex < 0) {
     return { host: hostport, port: null }
   }
 
-  let firstIndex = hostport.indexOf(':')
+  const firstIndex = hostport.indexOf(':')
   if (firstIndex != lastIndex && !hostport.includes('[')) {
     // Multiple colons but no brackets, so assume the string is an IPv6 address
     // with no port (e.g. "1234:5678:9:0:1234:5678:9:0").
@@ -102,13 +96,6 @@ function splitHostAndPort(hostport) {
     host = host.slice(1, -1)
   }
 
-  let port = parseInt(hostport.slice(lastIndex + 1), 10)
+  const port = parseInt(hostport.slice(lastIndex + 1), 10)
   return { host, port }
-}
-
-// PUBLIC API
-module.exports = {
-  splitHostAndPort,
-  getLoopbackAddress,
-  getAddress,
 }

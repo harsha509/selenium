@@ -20,17 +20,18 @@
  * with promises.
  */
 
-'use strict'
+import { isObject, isPromise } from './util'
 
-const { isObject, isPromise } = require('./util')
+/** A node-style callback; `value` is present whenever `error` is null. */
+export type NodeCallback<T> = (error: unknown, value?: T) => void
 
 /**
  * Creates a promise that will be resolved at a set time in the future.
- * @param {number} ms The amount of time, in milliseconds, to wait before
+ * @param ms The amount of time, in milliseconds, to wait before
  *     resolving the promise.
- * @return {!Promise<void>} The promise.
+ * @return The promise.
  */
-function delayed(ms) {
+function delayed(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
@@ -40,17 +41,24 @@ function delayed(ms) {
  * null if the call succeeded), and the success value as the second argument.
  * The callback will the resolve or reject the returned promise, based on its
  * arguments.
- * @param {!Function} fn The function to wrap.
- * @param {...?} args The arguments to apply to the function, excluding the
+ * @param fn The function to wrap.
+ * @param args The arguments to apply to the function, excluding the
  *     final callback.
- * @return {!Thenable} A promise that will be resolved with the
+ * @return A promise that will be resolved with the
  *     result of the provided function's callback.
  */
-function checkedNodeCall(fn, ...args) {
+function checkedNodeCall<T, A extends unknown[]>(
+  fn: (...args: [...A, NodeCallback<T>]) => void,
+  ...args: A
+): Promise<T> {
   return new Promise(function (fulfill, reject) {
     try {
-      fn(...args, function (error, value) {
-        error ? reject(error) : fulfill(value)
+      fn(...args, function (error: unknown, value?: T) {
+        if (error) {
+          reject(error)
+        } else {
+          fulfill(value as T)
+        }
       })
     } catch (ex) {
       reject(ex)
@@ -88,14 +96,11 @@ function checkedNodeCall(fn, ...args) {
  *       throw Error('two');  // Hides Error: one
  *     });
  *
- * @param {!IThenable<?>} promise The promise to add the listener to.
- * @param {function(): (R|IThenable<R>)} callback The function to call when
- *     the promise is resolved.
- * @return {!Promise<R>} A promise that will be resolved with the callback
- *     result.
- * @template R
+ * @param promise The promise to add the listener to.
+ * @param callback The function to call when the promise is resolved.
+ * @return A promise that will be resolved with the callback result.
  */
-async function thenFinally(promise, callback) {
+async function thenFinally<R>(promise: unknown, callback: () => R | PromiseLike<R>): Promise<R> {
   try {
     await Promise.resolve(promise)
     return callback()
@@ -118,25 +123,27 @@ async function thenFinally(promise, callback) {
  * Only the first failure will be reported; all subsequent errors will be
  * silently ignored.
  *
- * @param {!(Array<TYPE>|IThenable<!Array<TYPE>>)} array The array to iterate
- *     over, or a promise that will resolve to said array.
- * @param {function(this: SELF, TYPE, number, !Array<TYPE>): ?} fn The
- *     function to call for each element in the array. This function should
- *     expect three arguments (the element, the index, and the array itself.
- * @param {SELF=} self The object to be used as the value of 'this' within `fn`.
- * @template TYPE, SELF
+ * @param array The array to iterate over, or a promise that will resolve to
+ *     said array.
+ * @param fn The function to call for each element in the array. This function
+ *     should expect three arguments (the element, the index, and the array
+ *     itself.
+ * @param self The object to be used as the value of 'this' within `fn`.
  */
-async function map(array, fn, self = undefined) {
+async function map<T, R>(
+  array: T[] | PromiseLike<T[]>,
+  fn: (item: T, index: number, array: T[]) => R | PromiseLike<R>,
+  self: unknown = undefined,
+): Promise<R[]> {
   const v = await Promise.resolve(array)
   if (!Array.isArray(v)) {
     throw TypeError('not an array')
   }
 
-  const arr = /** @type {!Array} */ (v)
-  const values = []
+  const values: R[] = []
 
-  for (const [index, item] of arr.entries()) {
-    values.push(await Promise.resolve(fn.call(self, item, index, arr)))
+  for (const [index, item] of v.entries()) {
+    values.push(await Promise.resolve(fn.call(self, item, index, v)))
   }
 
   return values
@@ -155,25 +162,25 @@ async function map(array, fn, self = undefined) {
  * first failure will be reported; all subsequent errors will be silently
  * ignored.
  *
- * @param {!(Array<TYPE>|IThenable<!Array<TYPE>>)} array The array to iterate
- *     over, or a promise that will resolve to said array.
- * @param {function(this: SELF, TYPE, number, !Array<TYPE>): (
- *             boolean|IThenable<boolean>)} fn The function
- *     to call for each element in the array.
- * @param {SELF=} self The object to be used as the value of 'this' within `fn`.
- * @template TYPE, SELF
+ * @param array The array to iterate over, or a promise that will resolve to
+ *     said array.
+ * @param fn The function to call for each element in the array.
+ * @param self The object to be used as the value of 'this' within `fn`.
  */
-async function filter(array, fn, self = undefined) {
+async function filter<T>(
+  array: T[] | PromiseLike<T[]>,
+  fn: (item: T, index: number, array: T[]) => boolean | PromiseLike<boolean>,
+  self: unknown = undefined,
+): Promise<T[]> {
   const v = await Promise.resolve(array)
   if (!Array.isArray(v)) {
     throw TypeError('not an array')
   }
 
-  const arr = /** @type {!Array} */ (v)
-  const values = []
+  const values: T[] = []
 
-  for (const [index, item] of arr.entries()) {
-    const isConditionTrue = await Promise.resolve(fn.call(self, item, index, arr))
+  for (const [index, item] of v.entries()) {
+    const isConditionTrue = await Promise.resolve(fn.call(self, item, index, v))
     if (isConditionTrue) {
       values.push(item)
     }
@@ -197,70 +204,62 @@ async function filter(array, fn, self = undefined) {
  *     value['self'] = value;
  *     promise.fullyResolved(value);  // Stack overflow.
  *
- * @param {*} value The value to fully resolve.
- * @return {!Thenable} A promise for a fully resolved version
- *     of the input value.
+ * @param value The value to fully resolve.
+ * @return A promise for a fully resolved version of the input value.
  */
-async function fullyResolved(value) {
+async function fullyResolved(value: unknown): Promise<unknown> {
   value = await Promise.resolve(value)
   if (Array.isArray(value)) {
-    return fullyResolveKeys(/** @type {!Array} */ (value))
+    return fullyResolveKeys(value)
   }
 
   if (isObject(value)) {
-    return fullyResolveKeys(/** @type {!Object} */ (value))
+    return fullyResolveKeys(value)
   }
 
   if (typeof value === 'function') {
-    return fullyResolveKeys(/** @type {!Object} */ (value))
+    return fullyResolveKeys(value)
   }
 
   return value
 }
 
+/** Whether a property value must itself be resolved by {@link fullyResolved}. */
+function isNested(value: unknown): value is object {
+  return typeof value === 'object' && value !== null
+}
+
 /**
- * @param {!(Array|Object)} obj the object to resolve.
- * @return {!Thenable} A promise that will be resolved with the
+ * @param obj the object to resolve.
+ * @return A promise that will be resolved with the
  *     input object once all of its values have been fully resolved.
  */
-async function fullyResolveKeys(obj) {
-  const isArray = Array.isArray(obj)
-  const numKeys = isArray ? obj.length : Object.keys(obj).length
-
-  if (!numKeys) {
+async function fullyResolveKeys(obj: object): Promise<object> {
+  if (Array.isArray(obj)) {
+    if (!obj.length) {
+      return obj
+    }
+    for (let i = 0; i < obj.length; i++) {
+      const partialValue: unknown = obj[i]
+      if (isNested(partialValue)) {
+        obj[i] = await fullyResolved(partialValue)
+      }
+    }
     return obj
   }
 
-  async function forEachProperty(obj, fn) {
-    for (let key in obj) {
-      await fn(obj[key], key)
+  if (!Object.keys(obj).length) {
+    return obj
+  }
+  for (const key in obj) {
+    const partialValue: unknown = Reflect.get(obj, key)
+    if (isNested(partialValue)) {
+      Reflect.set(obj, key, await fullyResolved(partialValue))
     }
   }
-
-  async function forEachElement(arr, fn) {
-    for (let i = 0; i < arr.length; i++) {
-      await fn(arr[i], i)
-    }
-  }
-
-  const forEachKey = isArray ? forEachElement : forEachProperty
-  await forEachKey(obj, async function (partialValue, key) {
-    if (!Array.isArray(partialValue) && (!partialValue || typeof partialValue !== 'object')) {
-      return
-    }
-    obj[key] = await fullyResolved(partialValue)
-  })
   return obj
 }
 
 // PUBLIC API
 
-module.exports = {
-  checkedNodeCall,
-  delayed,
-  filter,
-  finally: thenFinally,
-  fullyResolved,
-  isPromise,
-  map,
-}
+export { checkedNodeCall, delayed, filter, thenFinally as finally, fullyResolved, isPromise, map }
