@@ -81,7 +81,7 @@ interface BuilderOptions {
  */
 export class DriverService {
   private readonly log_: logging.Logger
-  private executable_: string
+  private executable_: string | null | undefined
   private readonly loopbackOnly_: boolean
   private readonly hostname_: string | undefined
   private readonly port_: number | PromiseLike<number>
@@ -108,10 +108,11 @@ export class DriverService {
   static DEFAULT_START_TIMEOUT_MS = 30 * 1000
 
   /**
-   * @param executable Path to the executable to run.
+   * @param executable Path to the executable to run; may be left unset and
+   *     provided later via {@link #setExecutable}.
    * @param options Configuration options for the service.
    */
-  constructor(executable: string, options: ServiceOptions) {
+  constructor(executable: string | null | undefined, options: ServiceOptions) {
     this.log_ = logging.getLogger(`${logging.Type.DRIVER}.DriverService`)
     this.executable_ = executable
     this.loopbackOnly_ = !!options.loopback
@@ -125,7 +126,7 @@ export class DriverService {
     this.address_ = null
   }
 
-  getExecutable(): string {
+  getExecutable(): string | null | undefined {
     return this.executable_
   }
 
@@ -181,6 +182,9 @@ export class DriverService {
           }
 
           return resolveCommandLineFlags(this.args_).then((args) => {
+            if (!this.executable_) {
+              throw Error('Executable path has not been set')
+            }
             const command = exec(this.executable_, {
               args: args,
               env: this.env_,
@@ -255,7 +259,7 @@ export class DriverService {
    * child process.
    */
   static Builder = class Builder {
-    readonly exe_: string
+    readonly exe_: string | undefined
     options_: BuilderOptions
 
     /**
@@ -263,7 +267,7 @@ export class DriverService {
      *     `--port` flag for defining the port to start the server on.
      * @throws {Error} If the provided executable path does not exist.
      */
-    constructor(exe: string) {
+    constructor(exe?: string) {
       this.exe_ = exe
       this.options_ = {
         args: [],

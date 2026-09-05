@@ -21,13 +21,13 @@
  * @module selenium-webdriver/safari
  */
 
-'use strict'
-
-const http = require('./http')
-const remote = require('./remote')
-const webdriver = require('./lib/webdriver')
-const { Browser, Capabilities } = require('./lib/capabilities')
-const { getBinaryPaths } = require('./common/driverFinder')
+import * as http from './http/index'
+import * as remote from './remote/index'
+import * as webdriver from './lib/webdriver'
+import { Browser, Capabilities } from './lib/capabilities'
+import type { CapabilitiesLike } from './lib/capabilities'
+import { getBinaryPaths } from './common/driverFinder'
+import { isObject } from './lib/util'
 
 /**
  * Creates {@link remote.DriverService} instances that manage
@@ -37,10 +37,10 @@ const { getBinaryPaths } = require('./common/driverFinder')
  */
 class ServiceBuilder extends remote.DriverService.Builder {
   /**
-   * @param {string=} opt_exe Path to the server executable to use. If omitted,
+   * @param opt_exe Path to the server executable to use. If omitted,
    *     the builder will attempt to locate the safaridriver on the system PATH.
    */
-  constructor(opt_exe) {
+  constructor(opt_exe?: string) {
     super(opt_exe)
     this.setLoopback(true) // Required.
   }
@@ -53,15 +53,15 @@ const TECHNOLOGY_PREVIEW_OPTIONS_KEY = 'technologyPreview'
  * Configuration options specific to the {@link Driver SafariDriver}.
  */
 class Options extends Capabilities {
+  options_: Record<string, unknown>
+
   /**
-   * @param {(Capabilities|Map<string, ?>|Object)=} other Another set of
-   *     capabilities to initialize this instance from.
+   * @param other Another set of capabilities to initialize this instance from.
    */
-  constructor(other = undefined) {
+  constructor(other: CapabilitiesLike | undefined = undefined) {
     super(other)
 
-    /** @private {!Object} */
-    this.options_ = this.get(OPTIONS_CAPABILITY_KEY) || {}
+    this.options_ = this.get<Record<string, unknown> | undefined>(OPTIONS_CAPABILITY_KEY) || {}
 
     this.set(OPTIONS_CAPABILITY_KEY, this.options_)
     this.setBrowserName(Browser.SAFARI)
@@ -71,10 +71,10 @@ class Options extends Capabilities {
    * Instruct the SafariDriver to use the Safari Technology Preview if true.
    * Otherwise, use the release version of Safari. Defaults to using the release version of Safari.
    *
-   * @param {boolean} useTechnologyPreview
-   * @return {!Options} A self reference.
+   * @param useTechnologyPreview
+   * @return A self reference.
    */
-  setTechnologyPreview(useTechnologyPreview) {
+  setTechnologyPreview(useTechnologyPreview: boolean): this {
     this.options_[TECHNOLOGY_PREVIEW_OPTIONS_KEY] = !!useTechnologyPreview
     return this
   }
@@ -85,25 +85,24 @@ class Options extends Capabilities {
    * This method sets the `safari:diagnose` option to `true` in the current configuration.
    * It is used to enable additional logging or diagnostic features specific to Safari.
    *
-   * @returns {Options} Returns the current instance
+   * @returns Returns the current instance
    */
-  enableLogging() {
+  enableLogging(): this {
     this.set('safari:diagnose', true)
     return this
   }
 }
 
 /**
- * @param  {(Capabilities|Object<string, *>)=} o The options object
- * @return {boolean}
+ * @param o The options object
  */
-function useTechnologyPreview(o) {
+function useTechnologyPreview(o: unknown): boolean {
   if (o instanceof Capabilities) {
-    let options = o.get(OPTIONS_CAPABILITY_KEY)
+    const options = o.get<Record<string, unknown> | undefined>(OPTIONS_CAPABILITY_KEY)
     return !!(options && options[TECHNOLOGY_PREVIEW_OPTIONS_KEY])
   }
 
-  if (o && typeof o === 'object') {
+  if (isObject(o)) {
     return !!o[TECHNOLOGY_PREVIEW_OPTIONS_KEY]
   }
 
@@ -121,33 +120,32 @@ const SAFARIDRIVER_TECHNOLOGY_PREVIEW_EXE = '/Applications/Safari Technology Pre
  *         .build();
  *
  */
+// @ts-expect-error TS2417: the static createSession intentionally differs from WebDriver.createSession (public API).
 class Driver extends webdriver.WebDriver {
   /**
    * Creates a new Safari session.
    *
-   * @param {(Options|Capabilities)=} options The configuration options.
-   * @return {!Driver} A new driver instance.
+   * @param options The configuration options.
+   * @return A new driver instance.
    */
-  static createSession(options) {
-    let caps = options || new Options()
+  static createSession<T extends Driver>(this: webdriver.WebDriverConstructor<T>, options?: Capabilities): T {
+    const caps = options || new Options()
 
-    let exe
+    let exe: string | undefined
     if (useTechnologyPreview(caps.get(OPTIONS_CAPABILITY_KEY))) {
       exe = SAFARIDRIVER_TECHNOLOGY_PREVIEW_EXE
     }
 
-    let service = new ServiceBuilder(exe).build()
+    const service = new ServiceBuilder(exe).build()
     if (!service.getExecutable()) {
       service.setExecutable(getBinaryPaths(caps).driverPath)
     }
-    let executor = new http.Executor(service.start().then((url) => new http.HttpClient(url)))
+    const executor = new http.Executor(service.start().then((url) => new http.HttpClient(url)))
 
-    return /** @type {!Driver} */ (super.createSession(executor, caps, () => service.kill()))
+    return super.createSession<T>(executor, caps, () => service.kill())
   }
 }
 
 // Public API
 
-exports.Driver = Driver
-exports.Options = Options
-exports.ServiceBuilder = ServiceBuilder
+export { Driver, Options, ServiceBuilder }

@@ -70,21 +70,19 @@
  *     @module selenium-webdriver/chromium
  */
 
-'use strict'
-
-const http = require('./http')
-const io = require('./io')
-const { Capabilities, Capability } = require('./lib/capabilities')
-const command = require('./lib/command')
-const error = require('./lib/error')
-const Symbols = require('./lib/symbols')
-const webdriver = require('./lib/webdriver')
-const remote = require('./remote')
-const { getBinaryPaths } = require('./common/driverFinder')
+import * as http from './http/index'
+import * as io from './io/index'
+import { Capabilities, Capability } from './lib/capabilities'
+import type { CapabilitiesLike } from './lib/capabilities'
+import * as command from './lib/command'
+import * as error from './lib/error'
+import * as Symbols from './lib/symbols'
+import * as webdriver from './lib/webdriver'
+import * as remote from './remote/index'
+import { getBinaryPaths } from './common/driverFinder'
 
 /**
  * Custom command names supported by Chromium WebDriver.
- * @enum {string}
  */
 const Command = {
   LAUNCH_APP: 'launchApp',
@@ -100,15 +98,57 @@ const Command = {
   START_CAST_TAB_MIRRORING: 'setCastTabMirroring',
   GET_CAST_ISSUE_MESSAGE: 'getCastIssueMessage',
   STOP_CASTING: 'stopCasting',
+} as const
+
+/** The vendor options dictionary stored under the browser's capability key. */
+export interface ChromiumOptionsDict {
+  args?: string[]
+  debuggerAddress?: string
+  excludeSwitches?: string[]
+  extensions?: Extensions
+  binary?: string
+  detach?: boolean
+  prefs?: object
+  perfLoggingPrefs?: PerfLoggingPrefs
+  localState?: object
+  androidActivity?: string
+  androidDeviceSerial?: string
+  androidPackage?: string | null
+  androidProcess?: string
+  androidUseRunningApp?: boolean
+  logPath?: string
+  minidumpPath?: string
+  mobileEmulation?: MobileEmulationConfig | null
+  windowTypes?: string[]
+}
+
+/** Performance logging preferences, see {@link Options#setPerfLoggingPrefs}. */
+export interface PerfLoggingPrefs {
+  enableNetwork?: boolean
+  enablePage?: boolean
+  enableTimeline?: boolean
+  traceCategories?: string
+  bufferUsageReportingInterval?: number
+}
+
+/** Mobile emulation configuration, see {@link Options#setMobileEmulation}. */
+export type MobileEmulationConfig =
+  | { deviceName: string }
+  | { deviceMetrics: { width: number; height: number; pixelRatio: number } }
+  | { width: number; height: number; pixelRatio: number }
+
+/** Static side of a Chromium {@link Driver} subclass: each browser supplies its default service. */
+export interface ChromiumDriverConstructor<T extends webdriver.WebDriver> extends webdriver.WebDriverConstructor<T> {
+  getDefaultService(): remote.DriverService
 }
 
 /**
  * Creates a command executor with support for Chromium's custom commands.
- * @param {!Promise<string>} url The server's URL.
+ * @param url The server's URL.
  * @param vendorPrefix
- * @return {!command.Executor} The new command executor.
+ * @return The new command executor.
  */
-function createExecutor(url, vendorPrefix) {
+function createExecutor(url: Promise<string>, vendorPrefix: string): http.Executor {
   const agent = new http.Agent({ keepAlive: true })
   const client = url.then((url) => new http.HttpClient(url, agent))
   const executor = new http.Executor(client)
@@ -118,9 +158,9 @@ function createExecutor(url, vendorPrefix) {
 
 /**
  * Configures the given executor with Chromium-specific commands.
- * @param {!http.Executor} executor the executor to configure.
+ * @param executor the executor to configure.
  */
-function configureExecutor(executor, vendorPrefix) {
+function configureExecutor(executor: http.Executor, vendorPrefix: string): void {
   executor.defineCommand(Command.LAUNCH_APP, 'POST', '/session/:sessionId/chromium/launch_app')
   executor.defineCommand(Command.GET_NETWORK_CONDITIONS, 'GET', '/session/:sessionId/chromium/network_conditions')
   executor.defineCommand(Command.SET_NETWORK_CONDITIONS, 'POST', '/session/:sessionId/chromium/network_conditions')
@@ -160,12 +200,12 @@ function configureExecutor(executor, vendorPrefix) {
  * Creates {@link selenium-webdriver/remote.DriverService} instances that manage
  * a WebDriver server in a child process.
  */
-class ServiceBuilder extends remote.DriverService.Builder {
+export class ServiceBuilder extends remote.DriverService.Builder {
   /**
-   * @param {string=} exe Path to the server executable to use. Subclasses
+   * @param exe Path to the server executable to use. Subclasses
    * should ensure a valid path to the appropriate exe is provided.
    */
-  constructor(exe) {
+  constructor(exe?: string) {
     super(exe)
     this.setLoopback(true) // Required
   }
@@ -175,53 +215,53 @@ class ServiceBuilder extends remote.DriverService.Builder {
    * if an {@linkplain Options#androidPackage Android session} is requested, but
    * adb **must** be started beforehand._
    *
-   * @param {number} port Which port adb is running on.
-   * @return {!ServiceBuilder} A self reference.
+   * @param port Which port adb is running on.
+   * @return A self reference.
    */
-  setAdbPort(port) {
+  setAdbPort(port: number): this {
     return this.addArguments('--adb-port=' + port)
   }
 
   /**
    * Sets the path of the log file the driver should log to. If a log file is
    * not specified, the driver will log to stderr.
-   * @param {string} path Path of the log file to use.
-   * @return {!ServiceBuilder} A self reference.
+   * @param path Path of the log file to use.
+   * @return A self reference.
    */
-  loggingTo(path) {
+  loggingTo(path: string): this {
     return this.addArguments('--log-path=' + path)
   }
 
   /**
    * Enables Chrome logging.
-   * @returns {!ServiceBuilder} A self reference.
+   * @returns A self reference.
    */
-  enableChromeLogging() {
+  enableChromeLogging(): this {
     return this.addArguments('--enable-chrome-logs')
   }
 
   /**
    * Enables verbose logging.
-   * @return {!ServiceBuilder} A self reference.
+   * @return A self reference.
    */
-  enableVerboseLogging() {
+  enableVerboseLogging(): this {
     return this.addArguments('--verbose')
   }
 
   /**
    * Sets the number of threads the driver should use to manage HTTP requests.
    * By default, the driver will use 4 threads.
-   * @param {number} n The number of threads to use.
-   * @return {!ServiceBuilder} A self reference.
+   * @param n The number of threads to use.
+   * @return A self reference.
    */
-  setNumHttpThreads(n) {
+  setNumHttpThreads(n: number): this {
     return this.addArguments('--http-threads=' + n)
   }
 
   /**
    * @override
    */
-  setPath(path) {
+  setPath(path: string): this {
     super.setPath(path)
     return this.addArguments('--url-base=' + path)
   }
@@ -229,17 +269,20 @@ class ServiceBuilder extends remote.DriverService.Builder {
 
 /**
  * Class for managing WebDriver options specific to a Chromium-based browser.
+ * Subclasses set `CAPABILITY_KEY` and `BROWSER_NAME_VALUE` on their prototype.
  */
-class Options extends Capabilities {
+export class Options extends Capabilities {
+  declare CAPABILITY_KEY: string
+  declare BROWSER_NAME_VALUE: string
+  options_: ChromiumOptionsDict
+
   /**
-   * @param {(Capabilities|Map<string, ?>|Object)=} other Another set of
-   *     capabilities to initialize this instance from.
+   * @param other Another set of capabilities to initialize this instance from.
    */
-  constructor(other = undefined) {
+  constructor(other: CapabilitiesLike | undefined = undefined) {
     super(other)
 
-    /** @private {!Object} */
-    this.options_ = this.get(this.CAPABILITY_KEY) || {}
+    this.options_ = this.get<ChromiumOptionsDict | undefined>(this.CAPABILITY_KEY) || {}
 
     this.setBrowserName(this.BROWSER_NAME_VALUE)
     this.set(this.CAPABILITY_KEY, this.options_)
@@ -251,11 +294,11 @@ class Options extends Capabilities {
    * (e.g. "--foo" and "foo"). Arguments with an associated value should be
    * delimited by an "=": "foo=bar".
    *
-   * @param {...(string|!Array<string>)} args The arguments to add.
-   * @return {!Options} A self reference.
+   * @param args The arguments to add.
+   * @return A self reference.
    */
-  addArguments(...args) {
-    let newArgs = (this.options_.args || []).concat(...args)
+  addArguments(...args: (string | string[])[]): this {
+    const newArgs = (this.options_.args || []).concat(...args)
     if (newArgs.length) {
       this.options_.args = newArgs
     }
@@ -267,10 +310,10 @@ class Options extends Capabilities {
    * Address should be of the form "{hostname|IP address}:port"
    * (e.g. "localhost:9222").
    *
-   * @param {string} address The address to connect to.
-   * @return {!Options} A self reference.
+   * @param address The address to connect to.
+   * @return A self reference.
    */
-  debuggerAddress(address) {
+  debuggerAddress(address: string): this {
     this.options_.debuggerAddress = address
     return this
   }
@@ -278,13 +321,13 @@ class Options extends Capabilities {
   /**
    * Sets the initial window size.
    *
-   * @param {{width: number, height: number}} size The desired window size.
-   * @return {!Options} A self reference.
+   * @param size The desired window size.
+   * @return A self reference.
    * @throws {TypeError} if width or height is unspecified, not a number, or
    *     less than or equal to 0.
    */
-  windowSize({ width, height }) {
-    function checkArg(arg) {
+  windowSize({ width, height }: { width: number; height: number }): this {
+    function checkArg(arg: unknown): void {
       if (typeof arg !== 'number' || arg <= 0) {
         throw TypeError('Arguments must be {width, height} with numbers > 0')
       }
@@ -299,11 +342,11 @@ class Options extends Capabilities {
    * List of Chrome command line switches to exclude that ChromeDriver by default
    * passes when starting Chrome.  Do not prefix switches with "--".
    *
-   * @param {...(string|!Array<string>)} args The switches to exclude.
-   * @return {!Options} A self reference.
+   * @param args The switches to exclude.
+   * @return A self reference.
    */
-  excludeSwitches(...args) {
-    let switches = (this.options_.excludeSwitches || []).concat(...args)
+  excludeSwitches(...args: (string | string[])[]): this {
+    const switches = (this.options_.excludeSwitches || []).concat(...args)
     if (switches.length) {
       this.options_.excludeSwitches = switches
     }
@@ -314,12 +357,11 @@ class Options extends Capabilities {
    * Add additional extensions to install when launching the browser. Each extension
    * should be specified as the path to the packed CRX file, or a Buffer for an
    * extension.
-   * @param {...(string|!Buffer|!Array<(string|!Buffer)>)} args The
-   *     extensions to add.
-   * @return {!Options} A self reference.
+   * @param args The extensions to add.
+   * @return A self reference.
    */
-  addExtensions(...args) {
-    let extensions = this.options_.extensions || new Extensions()
+  addExtensions(...args: (string | Buffer | (string | Buffer)[])[]): this {
+    const extensions = this.options_.extensions || new Extensions()
     extensions.add(...args)
     if (extensions.length) {
       this.options_.extensions = extensions
@@ -335,10 +377,10 @@ class Options extends Capabilities {
    * The binary path can be absolute or relative to the WebDriver server
    * executable, but it must exist on the machine that will launch the browser.
    *
-   * @param {string} path The path to the browser binary to use.
-   * @return {!Options} A self reference.
+   * @param path The path to the browser binary to use.
+   * @return A self reference.
    */
-  setBinaryPath(path) {
+  setBinaryPath(path: string): this {
     this.options_.binary = path
     return this
   }
@@ -347,11 +389,11 @@ class Options extends Capabilities {
    * Sets whether to leave the started browser process running if the controlling
    * driver service is killed before {@link webdriver.WebDriver#quit()} is
    * called.
-   * @param {boolean} detach Whether to leave the browser running if the
+   * @param detach Whether to leave the browser running if the
    *     driver service is killed before the session.
-   * @return {!Options} A self reference.
+   * @return A self reference.
    */
-  detachDriver(detach) {
+  detachDriver(detach: boolean): this {
     this.options_.detach = detach
     return this
   }
@@ -359,10 +401,10 @@ class Options extends Capabilities {
   /**
    * Sets the user preferences for Chrome's user profile. See the "Preferences"
    * file in Chrome's user data directory for examples.
-   * @param {!Object} prefs Dictionary of user preferences to use.
-   * @return {!Options} A self reference.
+   * @param prefs Dictionary of user preferences to use.
+   * @return A self reference.
    */
-  setUserPreferences(prefs) {
+  setUserPreferences(prefs: object): this {
     this.options_.prefs = prefs
     return this
   }
@@ -383,15 +425,10 @@ class Options extends Capabilities {
    *     once per second, DevTools will report how full the trace buffer is. If
    *     a report indicates the buffer usage is 100%, a warning will be issued.
    *
-   * @param {{enableNetwork: boolean,
-   *          enablePage: boolean,
-   *          enableTimeline: boolean,
-   *          traceCategories: string,
-   *          bufferUsageReportingInterval: number}} prefs The performance
-   *     logging preferences.
-   * @return {!Options} A self reference.
+   * @param prefs The performance logging preferences.
+   * @return A self reference.
    */
-  setPerfLoggingPrefs(prefs) {
+  setPerfLoggingPrefs(prefs: PerfLoggingPrefs): this {
     this.options_.perfLoggingPrefs = prefs
     return this
   }
@@ -399,10 +436,10 @@ class Options extends Capabilities {
   /**
    * Sets preferences for the "Local State" file in Chrome's user data
    * directory.
-   * @param {!Object} state Dictionary of local state preferences.
-   * @return {!Options} A self reference.
+   * @param state Dictionary of local state preferences.
+   * @return A self reference.
    */
-  setLocalState(state) {
+  setLocalState(state: object): this {
     this.options_.localState = state
     return this
   }
@@ -412,10 +449,10 @@ class Options extends Capabilities {
    * option must be set to connect to an [Android WebView](
    * https://chromedriver.chromium.org/getting-started/getting-started---android)
    *
-   * @param {string} name The activity name.
-   * @return {!Options} A self reference.
+   * @param name The activity name.
+   * @return A self reference.
    */
-  androidActivity(name) {
+  androidActivity(name: string): this {
     this.options_.androidActivity = name
     return this
   }
@@ -425,10 +462,10 @@ class Options extends Capabilities {
    * WebDriver server will select an unused device at random. An error will be
    * returned if all devices already have active sessions.
    *
-   * @param {string} serial The device serial number to connect to.
-   * @return {!Options} A self reference.
+   * @param serial The device serial number to connect to.
+   * @return A self reference.
    */
-  androidDeviceSerial(serial) {
+  androidDeviceSerial(serial: string): this {
     this.options_.androidDeviceSerial = serial
     return this
   }
@@ -436,11 +473,11 @@ class Options extends Capabilities {
   /**
    * Sets the package name of the Chrome or WebView app.
    *
-   * @param {?string} pkg The package to connect to, or `null` to disable Android
+   * @param pkg The package to connect to, or `null` to disable Android
    *     and switch back to using desktop browser.
-   * @return {!Options} A self reference.
+   * @return A self reference.
    */
-  androidPackage(pkg) {
+  androidPackage(pkg: string | null): this {
     this.options_.androidPackage = pkg
     return this
   }
@@ -450,10 +487,10 @@ class Options extends Capabilities {
    * `ps`). If not specified, the process name is assumed to be the same as
    * {@link #androidPackage}.
    *
-   * @param {string} processName The main activity name.
-   * @return {!Options} A self reference.
+   * @param processName The main activity name.
+   * @return A self reference.
    */
-  androidProcess(processName) {
+  androidProcess(processName: string): this {
     this.options_.androidProcess = processName
     return this
   }
@@ -463,10 +500,10 @@ class Options extends Capabilities {
    * {@linkplain #androidProcess app} instead of launching the app with a clean
    * data directory.
    *
-   * @param {boolean} useRunning Whether to connect to a running instance.
-   * @return {!Options} A self reference.
+   * @param useRunning Whether to connect to a running instance.
+   * @return A self reference.
    */
-  androidUseRunningApp(useRunning) {
+  androidUseRunningApp(useRunning: boolean): this {
     this.options_.androidUseRunningApp = useRunning
     return this
   }
@@ -474,10 +511,10 @@ class Options extends Capabilities {
   /**
    * Sets the path to the browser's log file. This path should exist on the machine
    * that will launch the browser.
-   * @param {string} path Path to the log file to use.
-   * @return {!Options} A self reference.
+   * @param path Path to the log file to use.
+   * @return A self reference.
    */
-  setBrowserLogFile(path) {
+  setBrowserLogFile(path: string): this {
     this.options_.logPath = path
     return this
   }
@@ -485,10 +522,10 @@ class Options extends Capabilities {
   /**
    * Sets the directory to store browser minidumps in. This option is only
    * supported when the driver is running on Linux.
-   * @param {string} path The directory path.
-   * @return {!Options} A self reference.
+   * @param path The directory path.
+   * @return A self reference.
    */
-  setBrowserMinidumpPath(path) {
+  setBrowserMinidumpPath(path: string): this {
     this.options_.minidumpPath = path
     return this
   }
@@ -524,12 +561,10 @@ class Options extends Capabilities {
    * [em]: https://chromedriver.chromium.org/mobile-emulation
    * [devem]: https://developer.chrome.com/devtools/docs/device-mode
    *
-   * @param {?({deviceName: string}|
-   *           {width: number, height: number, pixelRatio: number})} config The
-   *     mobile emulation configuration, or `null` to disable emulation.
-   * @return {!Options} A self reference.
+   * @param config The mobile emulation configuration, or `null` to disable emulation.
+   * @return A self reference.
    */
-  setMobileEmulation(config) {
+  setMobileEmulation(config: MobileEmulationConfig | null): this {
     this.options_.mobileEmulation = config
     return this
   }
@@ -537,12 +572,11 @@ class Options extends Capabilities {
   /**
    * Sets a list of the window types that will appear when getting window
    * handles. For access to <webview> elements, include "webview" in the list.
-   * @param {...(string|!Array<string>)} args The window types that will appear
-   * when getting window handles.
-   * @return {!Options} A self reference.
+   * @param args The window types that will appear when getting window handles.
+   * @return A self reference.
    */
-  windowTypes(...args) {
-    let windowTypes = (this.options_.windowTypes || []).concat(...args)
+  windowTypes(...args: (string | string[])[]): this {
+    const windowTypes = (this.options_.windowTypes || []).concat(...args)
     if (windowTypes.length) {
       this.options_.windowTypes = windowTypes
     }
@@ -551,9 +585,9 @@ class Options extends Capabilities {
 
   /**
    * Enable bidi connection
-   * @returns {!Capabilities}
+   * @returns A self reference.
    */
-  enableBidi() {
+  enableBidi(): this {
     return this.set('webSocketUrl', true)
   }
 }
@@ -562,14 +596,16 @@ class Options extends Capabilities {
  * A list of extensions to install when launching the browser.
  */
 class Extensions {
+  extensions: (string | Buffer)[]
+
   constructor() {
     this.extensions = []
   }
 
   /**
-   * @return {number} The length of the extensions list.
+   * @return The length of the extensions list.
    */
-  get length() {
+  get length(): number {
     return this.extensions.length
   }
 
@@ -578,22 +614,21 @@ class Extensions {
    * extension should be specified as the path to the packed CRX file, or a
    * Buffer for an extension.
    *
-   * @param {...(string|!Buffer|!Array<(string|!Buffer)>)} args The
-   *     extensions to add.
+   * @param args The extensions to add.
    */
-  add(...args) {
+  add(...args: (string | Buffer | (string | Buffer)[])[]): void {
     this.extensions = this.extensions.concat(...args)
   }
 
   /**
-   * @return {!Object} A serialized representation of this Extensions object.
+   * @return A serialized representation of this Extensions object.
    */
-  [Symbols.serialize]() {
+  [Symbols.serialize](): (string | Promise<string>)[] {
     return this.extensions.map(function (extension) {
       if (Buffer.isBuffer(extension)) {
         return extension.toString('base64')
       }
-      return io.read(/** @type {string} */ (extension)).then((buffer) => buffer.toString('base64'))
+      return io.read(extension).then((buffer) => buffer.toString('base64'))
     })
   }
 }
@@ -601,33 +636,39 @@ class Extensions {
 /**
  * Creates a new WebDriver client for Chromium-based browsers.
  */
-class Driver extends webdriver.WebDriver {
+// @ts-expect-error TS2417: the static createSession intentionally differs from WebDriver.createSession (public API).
+export class Driver extends webdriver.WebDriver {
   /**
    * Creates a new session with the WebDriver server.
    *
-   * @param {(Capabilities|Options)=} caps The configuration options.
-   * @param {(remote.DriverService|http.Executor)=} opt_serviceExecutor Either
-   *     a  DriverService to use for the remote end, or a preconfigured executor
-   *     for an externally managed endpoint. If neither is provided, the
-   *     {@linkplain ##getDefaultService default service} will be used by
-   *     default.
+   * @param caps The configuration options.
+   * @param opt_serviceExecutor Either a DriverService to use for the remote
+   *     end, or a preconfigured executor for an externally managed endpoint.
+   *     If neither is provided, the {@linkplain ##getDefaultService default
+   *     service} will be used by default.
    * @param vendorPrefix Either 'goog' or 'ms'
    * @param vendorCapabilityKey Either 'goog:chromeOptions' or 'ms:edgeOptions'
-   * @return {!Driver} A new driver instance.
+   * @return A new driver instance.
    */
-  static createSession(caps, opt_serviceExecutor, vendorPrefix = '', vendorCapabilityKey = '') {
-    let executor
-    let onQuit
+  static createSession<T extends Driver>(
+    this: ChromiumDriverConstructor<T>,
+    caps: Capabilities,
+    opt_serviceExecutor?: remote.DriverService | http.Executor,
+    vendorPrefix = '',
+    vendorCapabilityKey = '',
+  ): T {
+    let executor: http.Executor
+    let onQuit: (() => unknown) | undefined
     if (opt_serviceExecutor instanceof http.Executor) {
       executor = opt_serviceExecutor
       configureExecutor(executor, vendorPrefix)
     } else {
-      let service = opt_serviceExecutor || this.getDefaultService()
+      const service = opt_serviceExecutor || this.getDefaultService()
       if (!service.getExecutable()) {
         const { driverPath, browserPath } = getBinaryPaths(caps)
         service.setExecutable(driverPath)
         if (browserPath) {
-          const vendorOptions = caps.get(vendorCapabilityKey)
+          const vendorOptions = caps.get<Record<string, unknown> | undefined>(vendorCapabilityKey)
           if (vendorOptions) {
             vendorOptions['binary'] = browserPath
             caps.set(vendorCapabilityKey, vendorOptions)
@@ -643,7 +684,7 @@ class Driver extends webdriver.WebDriver {
 
     // W3C spec requires noProxy value to be an array of strings, but Chromium
     // expects a single host as a string.
-    let proxy = caps.get(Capability.PROXY)
+    const proxy = caps.get<{ noProxy?: string | string[] } | undefined>(Capability.PROXY)
     if (proxy && Array.isArray(proxy.noProxy)) {
       proxy.noProxy = proxy.noProxy[0]
       if (!proxy.noProxy) {
@@ -651,7 +692,7 @@ class Driver extends webdriver.WebDriver {
       }
     }
 
-    return /** @type {!Driver} */ (super.createSession(executor, caps, onQuit))
+    return super.createSession<T>(executor, caps, onQuit)
   }
 
   /**
@@ -659,33 +700,32 @@ class Driver extends webdriver.WebDriver {
    * implementation.
    * @override
    */
-  setFileDetector() {}
+  setFileDetector(): void {}
 
   /**
    * Schedules a command to launch Chrome App with given ID.
-   * @param {string} id ID of the App to launch.
-   * @return {!Promise<void>} A promise that will be resolved
-   *     when app is launched.
+   * @param id ID of the App to launch.
+   * @return A promise that will be resolved when app is launched.
    */
-  launchApp(id) {
-    return this.execute(new command.Command(Command.LAUNCH_APP).setParameter('id', id))
+  launchApp(id: string): Promise<void> {
+    return this.execute<void>(new command.Command(Command.LAUNCH_APP).setParameter('id', id))
   }
 
   /**
    * Schedules a command to get Chromium network emulation settings.
-   * @return {!Promise} A promise that will be resolved when network
+   * @return A promise that will be resolved when network
    *     emulation settings are retrieved.
    */
-  getNetworkConditions() {
+  getNetworkConditions(): Promise<unknown> {
     return this.execute(new command.Command(Command.GET_NETWORK_CONDITIONS))
   }
 
   /**
    * Schedules a command to delete Chromium network emulation settings.
-   * @return {!Promise} A promise that will be resolved when network
+   * @return A promise that will be resolved when network
    *     emulation settings have been deleted.
    */
-  deleteNetworkConditions() {
+  deleteNetworkConditions(): Promise<unknown> {
     return this.execute(new command.Command(Command.DELETE_NETWORK_CONDITIONS))
   }
 
@@ -701,28 +741,29 @@ class Driver extends webdriver.WebDriver {
    *    upload_throughput: 500 * 1024 // Maximal aggregated upload throughput.
    * });
    *
-   * @param {Object} spec Defines the network conditions to set
-   * @return {!Promise<void>} A promise that will be resolved when network
+   * @param spec Defines the network conditions to set
+   * @return A promise that will be resolved when network
    *     emulation settings are set.
    */
-  setNetworkConditions(spec) {
+  setNetworkConditions(spec: object): Promise<void> {
     if (!spec || typeof spec !== 'object') {
       throw TypeError('setNetworkConditions called with non-network-conditions parameter')
     }
-    return this.execute(new command.Command(Command.SET_NETWORK_CONDITIONS).setParameter('network_conditions', spec))
+    return this.execute<void>(
+      new command.Command(Command.SET_NETWORK_CONDITIONS).setParameter('network_conditions', spec),
+    )
   }
 
   /**
    * Sends an arbitrary devtools command to the browser.
    *
-   * @param {string} cmd The name of the command to send.
-   * @param {Object=} params The command parameters.
-   * @return {!Promise<void>} A promise that will be resolved when the command
-   *     has finished.
+   * @param cmd The name of the command to send.
+   * @param params The command parameters.
+   * @return A promise that will be resolved when the command has finished.
    * @see <https://chromedevtools.github.io/devtools-protocol/>
    */
-  sendDevToolsCommand(cmd, params = {}) {
-    return this.execute(
+  sendDevToolsCommand(cmd: string, params: object = {}): Promise<void> {
+    return this.execute<void>(
       new command.Command(Command.SEND_DEVTOOLS_COMMAND).setParameter('cmd', cmd).setParameter('params', params),
     )
   }
@@ -730,13 +771,12 @@ class Driver extends webdriver.WebDriver {
   /**
    * Sends an arbitrary devtools command to the browser and get the result.
    *
-   * @param {string} cmd The name of the command to send.
-   * @param {Object=} params The command parameters.
-   * @return {!Promise<string>} A promise that will be resolved when the command
-   *     has finished.
+   * @param cmd The name of the command to send.
+   * @param params The command parameters.
+   * @return A promise that will be resolved with the command's result.
    * @see <https://chromedevtools.github.io/devtools-protocol/>
    */
-  sendAndGetDevToolsCommand(cmd, params = {}) {
+  sendAndGetDevToolsCommand(cmd: string, params: object = {}): Promise<unknown> {
     return this.execute(
       new command.Command(Command.SEND_AND_GET_DEVTOOLS_COMMAND)
         .setParameter('cmd', cmd)
@@ -747,14 +787,13 @@ class Driver extends webdriver.WebDriver {
   /**
    * Set a permission state to the given value.
    *
-   * @param {string} name A name of the permission to update.
-   * @param {("granted"|"denied"|"prompt")} state State to set permission to.
-   * @returns {!Promise<Object>} A promise that will be resolved when the
-   *     command has finished.
+   * @param name A name of the permission to update.
+   * @param state State to set permission to.
+   * @returns A promise that will be resolved when the command has finished.
    * @see <https://w3c.github.io/permissions/#permission-registry> for valid
    *     names
    */
-  setPermission(name, state) {
+  setPermission(name: string, state: 'granted' | 'denied' | 'prompt'): Promise<unknown> {
     return this.execute(
       new command.Command(Command.SET_PERMISSION).setParameter('descriptor', { name }).setParameter('state', state),
     )
@@ -763,12 +802,11 @@ class Driver extends webdriver.WebDriver {
   /**
    * Sends a DevTools command to change the browser's download directory.
    *
-   * @param {string} path The desired download directory.
-   * @return {!Promise<void>} A promise that will be resolved when the command
-   *     has finished.
+   * @param path The desired download directory.
+   * @return A promise that will be resolved when the command has finished.
    * @see #sendDevToolsCommand
    */
-  async setDownloadPath(path) {
+  async setDownloadPath(path: string): Promise<void> {
     if (!path || typeof path !== 'string') {
       throw new error.InvalidArgumentError('invalid download path')
     }
@@ -785,71 +823,67 @@ class Driver extends webdriver.WebDriver {
   /**
    * Returns the list of cast sinks (Cast devices) available to the Chrome media router.
    *
-   * @return {!promise.Thenable<void>} A promise that will be resolved with an array of Strings
+   * @return A promise that will be resolved with an array of Strings
    *   containing the friendly device names of available cast sink targets.
    */
-  getCastSinks() {
-    return this.execute(new command.Command(Command.GET_CAST_SINKS))
+  getCastSinks(): Promise<string[]> {
+    return this.execute<string[]>(new command.Command(Command.GET_CAST_SINKS))
   }
 
   /**
    * Selects a cast sink (Cast device) as the recipient of media router intents (connect or play).
    *
-   * @param {String} deviceName name of the target device.
-   * @return {!promise.Thenable<void>} A promise that will be resolved
+   * @param deviceName name of the target device.
+   * @return A promise that will be resolved
    *     when the target device has been selected to respond further webdriver commands.
    */
-  setCastSinkToUse(deviceName) {
-    return this.execute(new command.Command(Command.SET_CAST_SINK_TO_USE).setParameter('sinkName', deviceName))
+  setCastSinkToUse(deviceName: string): Promise<void> {
+    return this.execute<void>(new command.Command(Command.SET_CAST_SINK_TO_USE).setParameter('sinkName', deviceName))
   }
 
   /**
    * Initiates desktop mirroring for the current browser tab on the specified device.
    *
-   * @param {String} deviceName name of the target device.
-   * @return {!promise.Thenable<void>} A promise that will be resolved
+   * @param deviceName name of the target device.
+   * @return A promise that will be resolved
    *     when the mirror command has been issued to the device.
    */
-  startDesktopMirroring(deviceName) {
-    return this.execute(new command.Command(Command.START_CAST_DESKTOP_MIRRORING).setParameter('sinkName', deviceName))
+  startDesktopMirroring(deviceName: string): Promise<void> {
+    return this.execute<void>(
+      new command.Command(Command.START_CAST_DESKTOP_MIRRORING).setParameter('sinkName', deviceName),
+    )
   }
 
   /**
    * Initiates tab mirroring for the current browser tab on the specified device.
    *
-   * @param {String} deviceName name of the target device.
-   * @return {!promise.Thenable<void>} A promise that will be resolved
+   * @param deviceName name of the target device.
+   * @return A promise that will be resolved
    *     when the mirror command has been issued to the device.
    */
-  startCastTabMirroring(deviceName) {
-    return this.execute(new command.Command(Command.START_CAST_TAB_MIRRORING).setParameter('sinkName', deviceName))
+  startCastTabMirroring(deviceName: string): Promise<void> {
+    return this.execute<void>(
+      new command.Command(Command.START_CAST_TAB_MIRRORING).setParameter('sinkName', deviceName),
+    )
   }
 
   /**
    * Returns an error message when there is any issue in a Cast session.
-   * @return {!promise.Thenable<void>} A promise that will be resolved
+   * @return A promise that will be resolved
    *     when the mirror command has been issued to the device.
    */
-  getCastIssueMessage() {
-    return this.execute(new command.Command(Command.GET_CAST_ISSUE_MESSAGE))
+  getCastIssueMessage(): Promise<string> {
+    return this.execute<string>(new command.Command(Command.GET_CAST_ISSUE_MESSAGE))
   }
 
   /**
    * Stops casting from media router to the specified device, if connected.
    *
-   * @param {String} deviceName name of the target device.
-   * @return {!promise.Thenable<void>} A promise that will be resolved
+   * @param deviceName name of the target device.
+   * @return A promise that will be resolved
    *     when the stop command has been issued to the device.
    */
-  stopCasting(deviceName) {
-    return this.execute(new command.Command(Command.STOP_CASTING).setParameter('sinkName', deviceName))
+  stopCasting(deviceName: string): Promise<void> {
+    return this.execute<void>(new command.Command(Command.STOP_CASTING).setParameter('sinkName', deviceName))
   }
-}
-
-// PUBLIC API
-
-module.exports = {
-  Driver,
-  Options,
-  ServiceBuilder,
 }

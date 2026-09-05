@@ -107,30 +107,46 @@
  * @module selenium-webdriver/firefox
  */
 
-'use strict'
-
-const fs = require('node:fs')
-const path = require('node:path')
-const Symbols = require('./lib/symbols')
-const command = require('./lib/command')
-const http = require('./http')
-const io = require('./io')
-const remote = require('./remote')
-const webdriver = require('./lib/webdriver')
-const zip = require('./io/zip')
-const { Browser, Capabilities, Capability } = require('./lib/capabilities')
-const { Zip } = require('./io/zip')
-const { getBinaryPaths } = require('./common/driverFinder')
-const { findFreePort } = require('./net/portprober')
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import * as Symbols from './lib/symbols'
+import * as command from './lib/command'
+import * as http from './http/index'
+import * as io from './io/index'
+import * as remote from './remote/index'
+import * as webdriver from './lib/webdriver'
+import * as zip from './io/zip'
+import { Browser, Capabilities, Capability } from './lib/capabilities'
+import type { CapabilitiesLike } from './lib/capabilities'
+import { Zip } from './io/zip'
+import { getBinaryPaths } from './common/driverFinder'
+import { findFreePort } from './net/portprober'
 const FIREFOX_CAPABILITY_KEY = 'moz:firefoxOptions'
+
+/** The `moz:firefoxOptions` dictionary. */
+interface FirefoxOptionsDict {
+  profile?: Profile
+  args?: string[]
+  prefs?: Record<string, string | number | boolean>
+  binary?: string | Channel
+  androidPackage?: string
+  androidActivity?: string
+  deviceSerial?: string
+}
+
+/** The parts of a WebExtension manifest used to find the add-on ID. */
+interface AddonManifest {
+  browser_specific_settings?: { gecko?: { id?: string } }
+  applications?: { gecko?: { id?: string } }
+}
 
 /**
  * Thrown when there an add-on is malformed.
  * @final
  */
 class AddonFormatError extends Error {
-  /** @param {string} msg The error message. */
-  constructor(msg) {
+  /** @param msg The error message. */
+  constructor(msg: string) {
     super(msg)
     /** @override */
     this.name = this.constructor.name
@@ -139,28 +155,25 @@ class AddonFormatError extends Error {
 
 /**
  * Installs an extension to the given directory.
- * @param {string} extension Path to the xpi extension file to install.
- * @param {string} dir Path to the directory to install the extension in.
- * @return {!Promise<string>} A promise for the add-on ID once
- *     installed.
+ * @param extension Path to the xpi extension file to install.
+ * @param dir Path to the directory to install the extension in.
+ * @return A promise for the add-on ID once installed.
  */
-async function installExtension(extension, dir) {
+async function installExtension(extension: string, dir: string): Promise<string> {
   const ext = extension.slice(-4)
   if (ext !== '.xpi' && ext !== '.zip') {
     throw Error('File name does not end in ".zip" or ".xpi": ' + ext)
   }
 
-  let archive = await zip.load(extension)
+  const archive = await zip.load(extension)
   if (!archive.has('manifest.json')) {
     throw new AddonFormatError(`Couldn't find manifest.json in ${extension}`)
   }
 
-  let buf = await archive.getFile('manifest.json')
-  let parsedJSON = JSON.parse(buf.toString('utf8'))
+  const buf = await archive.getFile('manifest.json')
+  const parsedJSON: AddonManifest = JSON.parse(buf.toString('utf8'))
 
-  let { browser_specific_settings } =
-    /** @type {{browser_specific_settings:{gecko:{id:string}}}} */
-    parsedJSON
+  const { browser_specific_settings } = parsedJSON
 
   if (browser_specific_settings && browser_specific_settings.gecko) {
     /* browser_specific_settings is an alternative to applications
@@ -170,9 +183,7 @@ async function installExtension(extension, dir) {
     parsedJSON.applications = browser_specific_settings
   }
 
-  let { applications } =
-    /** @type {{applications:{gecko:{id:string}}}} */
-    parsedJSON
+  const { applications } = parsedJSON
   if (!(applications && applications.gecko && applications.gecko.id)) {
     throw new AddonFormatError(`Could not find add-on ID for ${extension}`)
   }
@@ -182,23 +193,23 @@ async function installExtension(extension, dir) {
 }
 
 class Profile {
-  constructor() {
-    /** @private {?string} */
-    this.template_ = null
+  template_: string | null
+  extensions_: string[]
 
-    /** @private {!Array<string>} */
+  constructor() {
+    this.template_ = null
     this.extensions_ = []
   }
 
-  addExtensions(/** !Array<string> */ paths) {
+  addExtensions(paths: string[]): void {
     this.extensions_ = this.extensions_.concat(...paths)
   }
 
   /**
-   * @return {(!Promise<string>|undefined)} a promise for a base64 encoded
-   *     profile, or undefined if there's no data to include.
+   * @return a promise for a base64 encoded profile, or undefined if there's no
+   *     data to include.
    */
-  [Symbols.serialize]() {
+  [Symbols.serialize](): Promise<string> | undefined {
     if (this.template_ || this.extensions_.length) {
       return buildProfile(this.template_, this.extensions_)
     }
@@ -207,18 +218,17 @@ class Profile {
 }
 
 /**
- * @param {?string} template path to an existing profile to use as a template.
- * @param {!Array<string>} extensions paths to extensions to install in the new
- *     profile.
- * @return {!Promise<string>} a promise for the base64 encoded profile.
+ * @param template path to an existing profile to use as a template.
+ * @param extensions paths to extensions to install in the new profile.
+ * @return a promise for the base64 encoded profile.
  */
-async function buildProfile(template, extensions) {
+async function buildProfile(template: string | null, extensions: string[]): Promise<string> {
   let dir = template
 
   if (extensions.length) {
     dir = await io.tmpDir()
     if (template) {
-      await io.copyDir(/** @type {string} */ (template), dir, /(parent\.lock|lock|\.parentlock)/)
+      await io.copyDir(template, dir, /(parent\.lock|lock|\.parentlock)/)
     }
 
     const extensionsDir = path.join(dir, 'extensions')
@@ -229,9 +239,9 @@ async function buildProfile(template, extensions) {
     }
   }
 
-  let zip = new Zip()
+  const zip = new Zip()
   return zip
-    .addDir(dir)
+    .addDir(String(dir))
     .then(() => zip.toBuffer())
     .then((buf) => buf.toString('base64'))
 }
@@ -241,10 +251,9 @@ async function buildProfile(template, extensions) {
  */
 class Options extends Capabilities {
   /**
-   * @param {(Capabilities|Map<string, ?>|Object)=} other Another set of
-   *     capabilities to initialize this instance from.
+   * @param other Another set of capabilities to initialize this instance from.
    */
-  constructor(other) {
+  constructor(other?: CapabilitiesLike) {
     super(other)
     this.setBrowserName(Browser.FIREFOX)
     // https://fxdx.dev/deprecating-cdp-support-in-firefox-embracing-the-future-with-webdriver-bidi/.
@@ -253,11 +262,10 @@ class Options extends Capabilities {
   }
 
   /**
-   * @return {!Object}
    * @private
    */
-  firefoxOptions_() {
-    let options = this.get(FIREFOX_CAPABILITY_KEY)
+  firefoxOptions_(): FirefoxOptionsDict {
+    let options = this.get<FirefoxOptionsDict | undefined>(FIREFOX_CAPABILITY_KEY)
     if (!options) {
       options = {}
       this.set(FIREFOX_CAPABILITY_KEY, options)
@@ -266,11 +274,10 @@ class Options extends Capabilities {
   }
 
   /**
-   * @return {!Profile}
    * @private
    */
-  profile_() {
-    let options = this.firefoxOptions_()
+  profile_(): Profile {
+    const options = this.firefoxOptions_()
     if (!options.profile) {
       options.profile = new Profile()
     }
@@ -281,13 +288,13 @@ class Options extends Capabilities {
    * Specify additional command line arguments that should be used when starting
    * the Firefox browser.
    *
-   * @param {...(string|!Array<string>)} args The arguments to include.
-   * @return {!Options} A self reference.
+   * @param args The arguments to include.
+   * @return A self reference.
    */
-  addArguments(...args) {
+  addArguments(...args: (string | string[])[]): this {
     if (args.length) {
-      let options = this.firefoxOptions_()
-      options.args = options.args ? options.args.concat(...args) : args
+      const options = this.firefoxOptions_()
+      options.args = options.args ? options.args.concat(...args) : args.flat()
     }
     return this
   }
@@ -295,13 +302,13 @@ class Options extends Capabilities {
   /**
    * Sets the initial window size
    *
-   * @param {{width: number, height: number}} size The desired window size.
-   * @return {!Options} A self reference.
+   * @param size The desired window size.
+   * @return A self reference.
    * @throws {TypeError} if width or height is unspecified, not a number, or
    *     less than or equal to 0.
    */
-  windowSize({ width, height }) {
-    function checkArg(arg) {
+  windowSize({ width, height }: { width: number; height: number }): this {
+    function checkArg(arg: unknown): void {
       if (typeof arg !== 'number' || arg <= 0) {
         throw TypeError('Arguments must be {width, height} with numbers > 0')
       }
@@ -315,29 +322,29 @@ class Options extends Capabilities {
   /**
    * Add extensions that should be installed when starting Firefox.
    *
-   * @param {...string} paths The paths to the extension XPI files to install.
-   * @return {!Options} A self reference.
+   * @param paths The paths to the extension XPI files to install.
+   * @return A self reference.
    * @deprecated Use {@link Driver#installAddon} instead.
    */
-  addExtensions(...paths) {
+  addExtensions(...paths: string[]): this {
     this.profile_().addExtensions(paths)
     return this
   }
 
   /**
-   * @param {string} key the preference key.
-   * @param {(string|number|boolean)} value the preference value.
-   * @return {!Options} A self reference.
+   * @param key the preference key.
+   * @param value the preference value.
+   * @return A self reference.
    * @throws {TypeError} if either the key or value has an invalid type.
    */
-  setPreference(key, value) {
+  setPreference(key: string, value: string | number | boolean): this {
     if (typeof key !== 'string') {
       throw TypeError(`key must be a string, but got ${typeof key}`)
     }
     if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
       throw TypeError(`value must be a string, number, or boolean, but got ${typeof value}`)
     }
-    let options = this.firefoxOptions_()
+    const options = this.firefoxOptions_()
     options.prefs = options.prefs || {}
     options.prefs[key] = value
     return this
@@ -348,11 +355,11 @@ class Options extends Capabilities {
    * sessions. This profile will be copied for each new session - changes will
    * not be applied to the profile itself.
    *
-   * @param {string} profile The profile to use.
-   * @return {!Options} A self reference.
+   * @param profile The profile to use.
+   * @return A self reference.
    * @throws {TypeError} if profile is not a string.
    */
-  setProfile(profile) {
+  setProfile(profile: string): this {
     if (typeof profile !== 'string') {
       throw TypeError(`profile must be a string, but got ${typeof profile}`)
     }
@@ -364,11 +371,11 @@ class Options extends Capabilities {
    * Sets the binary to use. The binary may be specified as the path to a
    * Firefox executable.
    *
-   * @param {(string)} binary The binary to use.
-   * @return {!Options} A self reference.
+   * @param binary The binary to use.
+   * @return A self reference.
    * @throws {TypeError} If `binary` is an invalid type.
    */
-  setBinary(binary) {
+  setBinary(binary: string | Channel): this {
     if (binary instanceof Channel || typeof binary === 'string') {
       this.firefoxOptions_().binary = binary
       return this
@@ -379,10 +386,14 @@ class Options extends Capabilities {
   /**
    * Enables Mobile start up features
    *
-   * @param {string} androidPackage The package to use
-   * @return {!Options} A self reference
+   * @param androidPackage The package to use
+   * @return A self reference
    */
-  enableMobile(androidPackage = 'org.mozilla.firefox', androidActivity = null, deviceSerial = null) {
+  enableMobile(
+    androidPackage = 'org.mozilla.firefox',
+    androidActivity: string | null = null,
+    deviceSerial: string | null = null,
+  ): this {
     this.firefoxOptions_().androidPackage = androidPackage
 
     if (androidActivity) {
@@ -397,15 +408,15 @@ class Options extends Capabilities {
   /**
    * Enables moz:debuggerAddress for firefox cdp
    */
-  enableDebugger() {
+  enableDebugger(): this {
     return this.set('moz:debuggerAddress', true)
   }
 
   /**
    * Enable bidi connection
-   * @returns {!Capabilities}
+   * @returns A self reference.
    */
-  enableBidi() {
+  enableBidi(): this {
     return this.set('webSocketUrl', true)
   }
 }
@@ -417,22 +428,20 @@ class Options extends Capabilities {
  * {@link #context=} method. Contexts allow you to direct all subsequent
  * commands to either "content" (default) or "chrome". The latter gives
  * you elevated security permissions.
- *
- * @enum {string}
  */
 const Context = {
   CONTENT: 'content',
   CHROME: 'chrome',
-}
+} as const
+type Context = (typeof Context)[keyof typeof Context]
 
 /**
- * @param {string} file Path to the file to find, relative to the program files
- *     root.
- * @return {!Promise<?string>} A promise for the located executable.
+ * @param file Path to the file to find, relative to the program files root.
+ * @return A promise for the located executable.
  *     The promise will resolve to {@code null} if Firefox was not found.
  */
-function findInProgramFiles(file) {
-  let files = [
+function findInProgramFiles(file: string): Promise<string | null> {
+  const files = [
     process.env['PROGRAMFILES'] || 'C:\\Program Files',
     process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)',
   ].map((prefix) => path.join(prefix, file))
@@ -445,32 +454,31 @@ function findInProgramFiles(file) {
   })
 }
 
-/** @enum {string} */
 const ExtensionCommand = {
   GET_CONTEXT: 'getContext',
   SET_CONTEXT: 'setContext',
   INSTALL_ADDON: 'install addon',
   UNINSTALL_ADDON: 'uninstall addon',
   FULL_PAGE_SCREENSHOT: 'fullPage screenshot',
-}
+} as const
 
 /**
  * Creates a command executor with support for Marionette's custom commands.
- * @param {!Promise<string>} serverUrl The server's URL.
- * @return {!command.Executor} The new command executor.
+ * @param serverUrl The server's URL.
+ * @return The new command executor.
  */
-function createExecutor(serverUrl) {
-  let client = serverUrl.then((url) => new http.HttpClient(url))
-  let executor = new http.Executor(client)
+function createExecutor(serverUrl: Promise<string>): http.Executor {
+  const client = serverUrl.then((url) => new http.HttpClient(url))
+  const executor = new http.Executor(client)
   configureExecutor(executor)
   return executor
 }
 
 /**
  * Configures the given executor with Firefox-specific commands.
- * @param {!http.Executor} executor the executor to configure.
+ * @param executor the executor to configure.
  */
-function configureExecutor(executor) {
+function configureExecutor(executor: http.Executor): void {
   executor.defineCommand(ExtensionCommand.GET_CONTEXT, 'GET', '/session/:sessionId/moz/context')
 
   executor.defineCommand(ExtensionCommand.SET_CONTEXT, 'POST', '/session/:sessionId/moz/context')
@@ -489,10 +497,10 @@ function configureExecutor(executor) {
  */
 class ServiceBuilder extends remote.DriverService.Builder {
   /**
-   * @param {string=} opt_exe Path to the server executable to use. If omitted,
+   * @param opt_exe Path to the server executable to use. If omitted,
    *     the builder will attempt to locate the geckodriver on the system PATH.
    */
-  constructor(opt_exe) {
+  constructor(opt_exe?: string) {
     super(opt_exe)
     this.setLoopback(true) // Required.
   }
@@ -500,11 +508,11 @@ class ServiceBuilder extends remote.DriverService.Builder {
   /**
    * Enables verbose logging.
    *
-   * @param {boolean=} opt_trace Whether to enable trace-level logging. By
+   * @param opt_trace Whether to enable trace-level logging. By
    *     default, only debug logging is enabled.
-   * @return {!ServiceBuilder} A self reference.
+   * @return A self reference.
    */
-  enableVerboseLogging(opt_trace) {
+  enableVerboseLogging(opt_trace?: boolean): this {
     return this.addArguments(opt_trace ? '-vv' : '-v')
   }
 
@@ -512,13 +520,13 @@ class ServiceBuilder extends remote.DriverService.Builder {
    * Overrides the parent build() method to add the websocket port argument
    * for Firefox when not connecting to an existing instance.
    *
-   * @return {!DriverService} A new driver service instance.
+   * @return A new driver service instance.
    */
-  build() {
-    let port = this.options_.port || findFreePort()
-    let argsPromise = Promise.resolve(port).then((port) => {
+  build(): remote.DriverService {
+    const port = this.options_.port || findFreePort()
+    const argsPromise = Promise.resolve(port).then((port) => {
       // Start with the default --port argument.
-      let args = this.options_.args.concat(`--port=${port}`)
+      const args = this.options_.args.concat(`--port=${port}`)
       // If the "--connect-existing" flag is not set, add the websocket port.
       if (!this.options_.args.some((arg) => arg === '--connect-existing')) {
         return findFreePort().then((wsPort) => {
@@ -529,7 +537,7 @@ class ServiceBuilder extends remote.DriverService.Builder {
       return args
     })
 
-    let options = Object.assign({}, this.options_, { args: argsPromise, port })
+    const options: remote.ServiceOptions = { ...this.options_, args: argsPromise, port }
     return new remote.DriverService(this.exe_, options)
   }
 }
@@ -537,18 +545,17 @@ class ServiceBuilder extends remote.DriverService.Builder {
 /**
  * A WebDriver client for Firefox.
  */
+// @ts-expect-error TS2417: the static createSession intentionally differs from WebDriver.createSession (public API).
 class Driver extends webdriver.WebDriver {
   /**
    * Creates a new Firefox session.
    *
-   * @param {(Options|Capabilities|Object)=} opt_config The
-   *    configuration options for this driver, specified as either an
-   *    {@link Options} or {@link Capabilities}, or as a raw hash object.
-   * @param {(http.Executor|remote.DriverService)=} opt_executor Either a
-   *   pre-configured command executor to use for communicating with an
-   *   externally managed remote end (which is assumed to already be running),
-   *   or the `DriverService` to use to start the geckodriver in a child
-   *   process.
+   * @param opt_config The configuration options for this driver, specified as
+   *    either an {@link Options} or {@link Capabilities}, or as a raw hash object.
+   * @param opt_executor Either a pre-configured command executor to use for
+   *   communicating with an externally managed remote end (which is assumed to
+   *   already be running), or the `DriverService` to use to start the
+   *   geckodriver in a child process.
    *
    *   If an executor is provided, care should e taken not to use reuse it with
    *   other clients as its internal command mappings will be updated to support
@@ -558,15 +565,19 @@ class Driver extends webdriver.WebDriver {
    *
    * @throws {Error} If a custom command executor is provided and the driver is
    *     configured to use the legacy FirefoxDriver from the Selenium project.
-   * @return {!Driver} A new driver instance.
+   * @return A new driver instance.
    */
-  static createSession(opt_config, opt_executor) {
-    let caps = opt_config instanceof Capabilities ? opt_config : new Options(opt_config)
+  static createSession<T extends Driver>(
+    this: webdriver.WebDriverConstructor<T>,
+    opt_config?: CapabilitiesLike,
+    opt_executor?: http.Executor | remote.DriverService,
+  ): T {
+    const caps = opt_config instanceof Capabilities ? opt_config : new Options(opt_config)
 
-    let firefoxBrowserPath = null
+    let firefoxBrowserPath: string | null = null
 
-    let executor
-    let onQuit
+    let executor: http.Executor
+    let onQuit: (() => unknown) | undefined
 
     if (opt_executor instanceof http.Executor) {
       executor = opt_executor
@@ -580,7 +591,7 @@ class Driver extends webdriver.WebDriver {
       executor = createExecutor(opt_executor.start())
       onQuit = () => opt_executor.kill()
     } else {
-      let service = new ServiceBuilder().build()
+      const service = new ServiceBuilder().build()
       if (!service.getExecutable()) {
         const { driverPath, browserPath } = getBinaryPaths(caps)
         service.setExecutable(driverPath)
@@ -591,7 +602,7 @@ class Driver extends webdriver.WebDriver {
     }
 
     if (firefoxBrowserPath) {
-      const vendorOptions = caps.get(FIREFOX_CAPABILITY_KEY)
+      const vendorOptions = caps.get<Record<string, unknown> | undefined>(FIREFOX_CAPABILITY_KEY)
       if (vendorOptions) {
         vendorOptions['binary'] = firefoxBrowserPath
         caps.set(FIREFOX_CAPABILITY_KEY, vendorOptions)
@@ -601,7 +612,7 @@ class Driver extends webdriver.WebDriver {
       caps.delete(Capability.BROWSER_VERSION)
     }
 
-    return /** @type {!Driver} */ (super.createSession(executor, caps, onQuit))
+    return super.createSession<T>(executor, caps, onQuit)
   }
 
   /**
@@ -609,15 +620,15 @@ class Driver extends webdriver.WebDriver {
    * implementation.
    * @override
    */
-  setFileDetector() {}
+  setFileDetector(): void {}
 
   /**
    * Get the context that is currently in effect.
    *
-   * @return {!Promise<Context>} Current context.
+   * @return Current context.
    */
-  getContext() {
-    return this.execute(new command.Command(ExtensionCommand.GET_CONTEXT))
+  getContext(): Promise<Context> {
+    return this.execute<Context>(new command.Command(ExtensionCommand.GET_CONTEXT))
   }
 
   /**
@@ -632,10 +643,10 @@ class Driver extends webdriver.WebDriver {
    *
    * Use your powers wisely.
    *
-   * @param {!Promise<void>} ctx The context to switch to.
+   * @param ctx The context to switch to.
    */
-  setContext(ctx) {
-    return this.execute(new command.Command(ExtensionCommand.SET_CONTEXT).setParameter('context', ctx))
+  setContext(ctx: Context): Promise<void> {
+    return this.execute<void>(new command.Command(ExtensionCommand.SET_CONTEXT).setParameter('context', ctx))
   }
 
   /**
@@ -644,25 +655,23 @@ class Driver extends webdriver.WebDriver {
    * addon.
    *
    *
-   * @param {string} path Path on the local filesystem to the web extension to
-   *     install.
-   * @param {boolean} temporary Flag indicating whether the extension should be
+   * @param path Path on the local filesystem to the web extension to install.
+   * @param temporary Flag indicating whether the extension should be
    *     installed temporarily - gets removed on restart
-   * @return {!Promise<string>} A promise that will resolve to an ID for the
-   *     newly installed addon.
+   * @return A promise that will resolve to an ID for the newly installed addon.
    * @see #uninstallAddon
    */
-  async installAddon(path, temporary = false) {
-    let stats = fs.statSync(path)
-    let buf
+  async installAddon(path: string, temporary = false): Promise<string> {
+    const stats = fs.statSync(path)
+    let buf: Buffer
     if (stats.isDirectory()) {
-      let zip = new Zip()
+      const zip = new Zip()
       await zip.addDir(path)
       buf = await zip.toBuffer('DEFLATE')
     } else {
       buf = await io.read(path)
     }
-    return this.execute(
+    return this.execute<string>(
       new command.Command(ExtensionCommand.INSTALL_ADDON)
         .setParameter('addon', buf.toString('base64'))
         .setParameter('temporary', temporary),
@@ -672,24 +681,22 @@ class Driver extends webdriver.WebDriver {
   /**
    * Uninstalls an addon from the current browser session's profile.
    *
-   * @param {(string|!Promise<string>)} id ID of the addon to uninstall.
-   * @return {!Promise} A promise that will resolve when the operation has
-   *     completed.
+   * @param id ID of the addon to uninstall.
+   * @return A promise that will resolve when the operation has completed.
    * @see #installAddon
    */
-  async uninstallAddon(id) {
+  async uninstallAddon(id: string | Promise<string>): Promise<void> {
     id = await Promise.resolve(id)
-    return this.execute(new command.Command(ExtensionCommand.UNINSTALL_ADDON).setParameter('id', id))
+    return this.execute<void>(new command.Command(ExtensionCommand.UNINSTALL_ADDON).setParameter('id', id))
   }
 
   /**
    * Take full page screenshot of the visible region
    *
-   * @return {!Promise<string>} A promise that will be
-   *     resolved to the screenshot as a base-64 encoded PNG.
+   * @return A promise that will be resolved to the screenshot as a base-64 encoded PNG.
    */
-  takeFullPageScreenshot() {
-    return this.execute(new command.Command(ExtensionCommand.FULL_PAGE_SCREENSHOT))
+  takeFullPageScreenshot(): Promise<string> {
+    return this.execute<string>(new command.Command(ExtensionCommand.FULL_PAGE_SCREENSHOT))
   }
 }
 
@@ -703,14 +710,17 @@ class Driver extends webdriver.WebDriver {
  * @final
  */
 class Channel {
+  private readonly darwin_: string
+  private readonly win32_: string
+  private found_: Promise<string> | null
+
   /**
-   * @param {string} darwin The path to check when running on MacOS.
-   * @param {string} win32 The path to check when running on Windows.
+   * @param darwin The path to check when running on MacOS.
+   * @param win32 The path to check when running on Windows.
    */
-  constructor(darwin, win32) {
-    /** @private @const */ this.darwin_ = darwin
-    /** @private @const */ this.win32_ = win32
-    /** @private {Promise<string>} */
+  constructor(darwin: string, win32: string) {
+    this.darwin_ = darwin
+    this.win32_ = win32
     this.found_ = null
   }
 
@@ -720,15 +730,14 @@ class Channel {
    * checking the user's PATH. The returned promise will be rejected if Firefox
    * can not be found.
    *
-   * @return {!Promise<string>} A promise for the location of the located
-   *     Firefox executable.
+   * @return A promise for the location of the located Firefox executable.
    */
-  locate() {
+  locate(): Promise<string> {
     if (this.found_) {
       return this.found_
     }
 
-    let found
+    let found: Promise<string | null>
     switch (process.platform) {
       case 'darwin':
         found = io.exists(this.darwin_).then((exists) => (exists ? this.darwin_ : io.findInPath('firefox')))
@@ -753,51 +762,40 @@ class Channel {
     return this.found_
   }
 
-  /** @return {!Promise<string>} */
-  [Symbols.serialize]() {
+  [Symbols.serialize](): Promise<string> {
     return this.locate()
   }
+
+  /**
+   * Firefox's developer channel.
+   * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#developer>
+   */
+  static DEV = new Channel(
+    '/Applications/Firefox Developer Edition.app/Contents/MacOS/firefox',
+    'Firefox Developer Edition\\firefox.exe',
+  )
+
+  /**
+   * Firefox's beta channel. Note this is provided mainly for convenience as
+   * the beta channel has the same installation location as the main release
+   * channel.
+   * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#beta>
+   */
+  static BETA = new Channel('/Applications/Firefox.app/Contents/MacOS/firefox', 'Mozilla Firefox\\firefox.exe')
+
+  /**
+   * Firefox's release channel.
+   * @see <https://www.mozilla.org/en-US/firefox/desktop/>
+   */
+  static RELEASE = new Channel('/Applications/Firefox.app/Contents/MacOS/firefox', 'Mozilla Firefox\\firefox.exe')
+
+  /**
+   * Firefox's nightly release channel.
+   * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#nightly>
+   */
+  static NIGHTLY = new Channel('/Applications/Firefox Nightly.app/Contents/MacOS/firefox', 'Nightly\\firefox.exe')
 }
-
-/**
- * Firefox's developer channel.
- * @const
- * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#developer>
- */
-Channel.DEV = new Channel(
-  '/Applications/Firefox Developer Edition.app/Contents/MacOS/firefox',
-  'Firefox Developer Edition\\firefox.exe',
-)
-
-/**
- * Firefox's beta channel. Note this is provided mainly for convenience as
- * the beta channel has the same installation location as the main release
- * channel.
- * @const
- * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#beta>
- */
-Channel.BETA = new Channel('/Applications/Firefox.app/Contents/MacOS/firefox', 'Mozilla Firefox\\firefox.exe')
-
-/**
- * Firefox's release channel.
- * @const
- * @see <https://www.mozilla.org/en-US/firefox/desktop/>
- */
-Channel.RELEASE = new Channel('/Applications/Firefox.app/Contents/MacOS/firefox', 'Mozilla Firefox\\firefox.exe')
-
-/**
- * Firefox's nightly release channel.
- * @const
- * @see <https://www.mozilla.org/en-US/firefox/channel/desktop/#nightly>
- */
-Channel.NIGHTLY = new Channel('/Applications/Firefox Nightly.app/Contents/MacOS/firefox', 'Nightly\\firefox.exe')
 
 // PUBLIC API
 
-module.exports = {
-  Channel,
-  Context,
-  Driver,
-  Options,
-  ServiceBuilder,
-}
+export { Channel, Context, Driver, Options, ServiceBuilder }
