@@ -22,8 +22,8 @@
 
 import { createRequire } from 'node:module'
 import * as _http from './http/index'
-import * as by from './lib/by'
 import * as capabilities from './lib/capabilities'
+import { Browser, Capabilities, Capability } from './lib/capabilities'
 import type { CapabilitiesLike, UserPromptHandler } from './lib/capabilities'
 import * as chrome from './chrome'
 import * as edge from './edge'
@@ -32,15 +32,13 @@ import * as firefox from './firefox'
 import * as ie from './ie'
 import * as input from './lib/input'
 import * as logging from './lib/logging'
-import * as color from './lib/color'
 import * as promise from './lib/promise'
 import type * as proxy from './lib/proxy'
 import * as remote from './remote/index'
 import * as safari from './safari'
-import * as session from './lib/session'
 import * as until from './lib/until'
 import * as webdriver from './lib/webdriver'
-import * as select from './lib/select'
+import { WebDriver } from './lib/webdriver'
 import LogInspector from './bidi/logInspector'
 import BrowsingContext from './bidi/browsingContext'
 import BrowsingContextInspector from './bidi/browsingContextInspector'
@@ -49,11 +47,6 @@ import NetworkInspector from './bidi/networkInspector'
 import * as self from './index'
 
 const version: string = createRequire(__filename)('./package.json').version
-
-const Browser = capabilities.Browser
-const Capabilities = capabilities.Capabilities
-const Capability = capabilities.Capability
-const WebDriver = webdriver.WebDriver
 
 /**
  * A WebDriver subclass as the {@link Builder} drives it: constructible from a
@@ -760,23 +753,30 @@ function checkOptions(
 // PUBLIC API
 
 export { Browser, Builder, Capabilities, Capability, ThenableWebDriver, WebDriver, version }
-export const Button = input.Button
-export const By = by.By
-export const RelativeBy = by.RelativeBy
-export const withTagName = by.withTagName
-export const locateWith = by.locateWith
-export const Condition = webdriver.Condition
-export const FileDetector = input.FileDetector
-export const Key = input.Key
-export const Origin = input.Origin
-export const Session = session.Session
-export const WebElement = webdriver.WebElement
-export const WebElementCondition = webdriver.WebElementCondition
-export const WebElementPromise = webdriver.WebElementPromise
+export { Button, FileDetector, Key, Origin } from './lib/input'
+export { By, RelativeBy, withTagName, locateWith } from './lib/by'
+export { Condition, WebElement, WebElementCondition, WebElementPromise } from './lib/webdriver'
+export { Session } from './lib/session'
 export { error, logging, promise, until }
-export const Select = select.Select
-export const Color = color.Color
-export const Colors = color.Colors
+export { Select } from './lib/select'
+export { Color, Colors } from './lib/color'
+// Type-only names that existing TypeScript code imports from the root (no runtime counterpart on trunk).
+export type { Locator, ByHash } from './lib/by'
+export type { Actions } from './lib/input'
+export type { Config as ProxyConfig } from './lib/proxy'
+export type {
+  Alert,
+  Navigation,
+  Options,
+  TargetLocator,
+  Window,
+  Logs,
+  ILocation,
+  ISize,
+  IRectangle,
+  IWebDriverOptionsCookie,
+  ITimeouts,
+} from './lib/webdriver'
 export { LogInspector, BrowsingContext, BrowsingContextInspector, ScriptManager, NetworkInspector }
 
 /** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */

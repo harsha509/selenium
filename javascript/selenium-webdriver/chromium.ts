@@ -890,5 +890,8 @@ export class Driver extends webdriver.WebDriver {
 }
 
 /** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+// Type-only: trunk never exported the class at runtime.
+export type { Extensions }
+
 const defaultExport: typeof self = self
 export default defaultExport
