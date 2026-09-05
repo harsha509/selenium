@@ -15,63 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
-const { isObject } = require('./util')
+import { isObject } from './util'
 
 /**
  * The base WebDriver error type. This error type is only used directly when a
  * more appropriate category is not defined for the offending error.
  */
-class WebDriverError extends Error {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
+export class WebDriverError extends Error {
+  /**
+   * A stacktrace reported by the remote webdriver endpoint that initially
+   * reported this error. This property will be an empty string if the remote
+   * end did not provide a stacktrace.
+   */
+  remoteStacktrace = ''
+
+  /** @param opt_error the error message, if any. */
+  constructor(opt_error?: string) {
     super(opt_error)
-
-    /** @override */
     this.name = this.constructor.name
-
-    /**
-     * A stacktrace reported by the remote webdriver endpoint that initially
-     * reported this error. This property will be an empty string if the remote
-     * end did not provide a stacktrace.
-     * @type {string}
-     */
-    this.remoteStacktrace = ''
   }
 }
 
 /**
  * Indicates the shadow root is no longer attached to the DOM
  */
-class DetachedShadowRootError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class DetachedShadowRootError extends WebDriverError {}
 
 /**
  * Indicates a {@linkplain ./webdriver.WebElement#click click command} could not
  * completed because the click target is obscured by other elements on the
  * page.
  */
-class ElementClickInterceptedError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class ElementClickInterceptedError extends WebDriverError {}
 
 /**
  * An attempt was made to select an element that cannot be selected.
  */
-class ElementNotSelectableError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class ElementNotSelectableError extends WebDriverError {}
 
 /**
  * Indicates a command could not be completed because the target element is
@@ -79,253 +59,142 @@ class ElementNotSelectableError extends WebDriverError {
  * is present in the DOM, but not rendered (i.e. its CSS style has
  * "display: none").
  */
-class ElementNotInteractableError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class ElementNotInteractableError extends WebDriverError {}
 
 /**
  * Indicates a navigation event caused the browser to generate a certificate
  * warning. This is usually caused by an expired or invalid TLS certificate.
  */
-class InsecureCertificateError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InsecureCertificateError extends WebDriverError {}
 
 /**
  * The arguments passed to a command are either invalid or malformed.
  */
-class InvalidArgumentError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InvalidArgumentError extends WebDriverError {}
 
 /**
  * An illegal attempt was made to set a cookie under a different domain than
  * the current page.
  */
-class InvalidCookieDomainError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InvalidCookieDomainError extends WebDriverError {}
 
 /**
  * The coordinates provided to an interactions operation are invalid.
  */
-class InvalidCoordinatesError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InvalidCoordinatesError extends WebDriverError {}
 
 /**
  * An element command could not be completed because the element is in an
  * invalid state, e.g. attempting to click an element that is no longer attached
  * to the document.
  */
-class InvalidElementStateError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InvalidElementStateError extends WebDriverError {}
 
 /**
  * Argument was an invalid selector.
  */
-class InvalidSelectorError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class InvalidSelectorError extends WebDriverError {}
 
 /**
  * Occurs when a command is directed to a session that does not exist.
  */
-class NoSuchSessionError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchSessionError extends WebDriverError {}
 
 /**
  * An error occurred while executing JavaScript supplied by the user.
  */
-class JavascriptError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class JavascriptError extends WebDriverError {}
 
 /**
  * The target for mouse interaction is not in the browser’s viewport and cannot
  * be brought into that viewport.
  */
-class MoveTargetOutOfBoundsError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class MoveTargetOutOfBoundsError extends WebDriverError {}
 
 /**
  * An attempt was made to operate on a modal dialog when one was not open.
  */
-class NoSuchAlertError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchAlertError extends WebDriverError {}
 
 /**
  * Indicates a named cookie could not be found in the cookie jar for the
  * currently selected document.
  */
-class NoSuchCookieError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchCookieError extends WebDriverError {}
 
 /**
  * An element could not be located on the page using the given search
  * parameters.
  */
-class NoSuchElementError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchElementError extends WebDriverError {}
 
 /**
  * A ShadowRoot could not be located on the element
  */
-class NoSuchShadowRootError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchShadowRootError extends WebDriverError {}
 
 /**
  * A request to switch to a frame could not be satisfied because the frame
  * could not be found.
  */
-class NoSuchFrameError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchFrameError extends WebDriverError {}
 
 /**
  * A request to switch to a window could not be satisfied because the window
  * could not be found.
  */
-class NoSuchWindowError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class NoSuchWindowError extends WebDriverError {}
 
 /**
  * A script did not complete before its timeout expired.
  */
-class ScriptTimeoutError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class ScriptTimeoutError extends WebDriverError {}
 
 /**
  * A new session could not be created.
  */
-class SessionNotCreatedError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class SessionNotCreatedError extends WebDriverError {}
 
 /**
  * An element command failed because the referenced element is no longer
  * attached to the DOM.
  */
-class StaleElementReferenceError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class StaleElementReferenceError extends WebDriverError {}
 
 /**
  * An operation did not complete before its timeout expired.
  */
-class TimeoutError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class TimeoutError extends WebDriverError {}
 
 /**
  * A request to set a cookie’s value could not be satisfied.
  */
-class UnableToSetCookieError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class UnableToSetCookieError extends WebDriverError {}
 
 /**
  * A screen capture operation was not possible.
  */
-class UnableToCaptureScreenError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class UnableToCaptureScreenError extends WebDriverError {}
 
 /**
  * A modal dialog was open, blocking this operation.
  */
-class UnexpectedAlertOpenError extends WebDriverError {
-  /**
-   * @param {string=} opt_error the error message, if any.
-   * @param {string=} opt_text the text of the open dialog, if available.
-   */
-  constructor(opt_error, opt_text) {
-    super(opt_error)
+export class UnexpectedAlertOpenError extends WebDriverError {
+  private readonly text_: string | undefined
 
-    /** @private {(string|undefined)} */
+  /**
+   * @param opt_error the error message, if any.
+   * @param opt_text the text of the open dialog, if available.
+   */
+  constructor(opt_error?: string, opt_text?: string) {
+    super(opt_error)
     this.text_ = opt_text
   }
 
   /**
-   * @return {(string|undefined)} The text displayed with the unhandled alert,
-   *     if available.
+   * @return The text displayed with the unhandled alert, if available.
    */
-  getAlertText() {
+  getAlertText(): string | undefined {
     return this.text_
   }
 }
@@ -333,33 +202,18 @@ class UnexpectedAlertOpenError extends WebDriverError {
 /**
  * A command could not be executed because the remote end is not aware of it.
  */
-class UnknownCommandError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class UnknownCommandError extends WebDriverError {}
 
 /**
  * The requested command matched a known URL but did not match an method for
  * that URL.
  */
-class UnknownMethodError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class UnknownMethodError extends WebDriverError {}
 
 /**
  * Reports an unsupported operation.
  */
-class UnsupportedOperationError extends WebDriverError {
-  /** @param {string=} opt_error the error message, if any. */
-  constructor(opt_error) {
-    super(opt_error)
-  }
-}
+export class UnsupportedOperationError extends WebDriverError {}
 
 // TODO(jleyba): Define UnknownError as an alias of WebDriverError?
 
@@ -368,9 +222,8 @@ class UnsupportedOperationError extends WebDriverError {
  * TODO: remove this when all code paths have been switched to the new error
  * types.
  * @deprecated
- * @enum {number}
  */
-const ErrorCode = {
+export const ErrorCode = {
   SUCCESS: 0,
   NO_SUCH_SESSION: 6,
   NO_SUCH_ELEMENT: 7,
@@ -407,9 +260,17 @@ const ErrorCode = {
   ELEMENT_CLICK_INTERCEPTED: 64,
   DETACHED_SHADOW_ROOT: 65,
   METHOD_NOT_ALLOWED: 405,
-}
+} as const
 
-const LEGACY_ERROR_CODE_TO_TYPE = new Map([
+/** A legacy numeric error code from {@link ErrorCode}. */
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
+
+/** Constructor of any {@link WebDriverError} subtype. */
+type WebDriverErrorConstructor = new (opt_error?: string) => WebDriverError
+
+const UNKNOWN_ERROR_CODE = 'unknown error'
+
+const LEGACY_ERROR_CODE_TO_TYPE = new Map<number, WebDriverErrorConstructor>([
   [ErrorCode.NO_SUCH_SESSION, NoSuchSessionError],
   [ErrorCode.NO_SUCH_ELEMENT, NoSuchElementError],
   [ErrorCode.NO_SUCH_FRAME, NoSuchFrameError],
@@ -442,8 +303,8 @@ const LEGACY_ERROR_CODE_TO_TYPE = new Map([
   [ErrorCode.METHOD_NOT_ALLOWED, UnsupportedOperationError],
 ])
 
-const ERROR_CODE_TO_TYPE = new Map([
-  ['unknown error', WebDriverError],
+const ERROR_CODE_TO_TYPE = new Map<string, WebDriverErrorConstructor>([
+  [UNKNOWN_ERROR_CODE, WebDriverError],
   ['detached shadow root', DetachedShadowRootError],
   ['element click intercepted', ElementClickInterceptedError],
   ['element not interactable', ElementNotInteractableError],
@@ -475,24 +336,32 @@ const ERROR_CODE_TO_TYPE = new Map([
   ['unsupported operation', UnsupportedOperationError],
 ])
 
-const TYPE_TO_ERROR_CODE = new Map()
+const TYPE_TO_ERROR_CODE = new Map<object, string>()
 ERROR_CODE_TO_TYPE.forEach((value, key) => {
   TYPE_TO_ERROR_CODE.set(value, key)
 })
 
+/** A W3C error response body. */
+export interface ErrorResponse {
+  error: string
+  message: string
+  stacktrace?: unknown
+  stackTrace?: unknown
+}
+
 /**
- * @param {*} err The error to encode.
- * @return {{error: string, message: string}} the encoded error.
+ * @param err The error to encode.
+ * @return the encoded error.
  */
-function encodeError(err) {
-  let type = WebDriverError
+export function encodeError(err: unknown): { error: string; message: string } {
+  let type: object = WebDriverError
   if (err instanceof WebDriverError && TYPE_TO_ERROR_CODE.has(err.constructor)) {
     type = err.constructor
   }
 
-  let message = err instanceof Error ? err.message : err + ''
+  const message = err instanceof Error ? err.message : String(err)
 
-  let code = /** @type {string} */ (TYPE_TO_ERROR_CODE.get(type))
+  const code = TYPE_TO_ERROR_CODE.get(type) ?? UNKNOWN_ERROR_CODE
   return { error: code, message: message }
 }
 
@@ -500,12 +369,11 @@ function encodeError(err) {
  * Tests if the given value is a valid error response object according to the
  * W3C WebDriver spec.
  *
- * @param {?} data The value to test.
- * @return {boolean} Whether the given value data object is a valid error
- *     response.
+ * @param data The value to test.
+ * @return Whether the given value data object is a valid error response.
  * @see https://w3c.github.io/webdriver/webdriver-spec.html#protocol
  */
-function isErrorResponse(data) {
+export function isErrorResponse(data: unknown): data is ErrorResponse {
   return isObject(data) && typeof data.error === 'string'
 }
 
@@ -513,14 +381,14 @@ function isErrorResponse(data) {
  * Throws an error coded from the W3C protocol. A generic error will be thrown
  * if the provided `data` is not a valid encoded error.
  *
- * @param {{error: string, message: string}} data The error data to decode.
+ * @param data The error data to decode.
  * @throws {WebDriverError} the decoded error.
  * @see https://w3c.github.io/webdriver/webdriver-spec.html#protocol
  */
-function throwDecodedError(data) {
+export function throwDecodedError(data: unknown): never {
   if (isErrorResponse(data)) {
-    let ctor = ERROR_CODE_TO_TYPE.get(data.error) || WebDriverError
-    let err = new ctor(data.message)
+    const ctor = ERROR_CODE_TO_TYPE.get(data.error) || WebDriverError
+    const err = new ctor(data.message)
     // TODO(jleyba): remove whichever case is excluded from the final W3C spec.
     if (typeof data.stacktrace === 'string') {
       err.remoteStacktrace = data.stacktrace
@@ -534,72 +402,33 @@ function throwDecodedError(data) {
 
 /**
  * Checks a legacy response from the Selenium 2.0 wire protocol for an error.
- * @param {*} responseObj the response object to check.
- * @return {*} responseObj the original response if it does not define an error.
+ * @param responseObj the response object to check.
+ * @return responseObj the original response if it does not define an error.
  * @throws {WebDriverError} if the response object defines an error.
  */
-function checkLegacyResponse(responseObj) {
+export function checkLegacyResponse<T>(responseObj: T): T {
   // Handle the legacy Selenium error response format.
   if (isObject(responseObj) && typeof responseObj.status === 'number' && responseObj.status !== 0) {
-    const { status, value } = responseObj
+    const status = responseObj.status
+    const value = responseObj.value
 
-    let ctor = LEGACY_ERROR_CODE_TO_TYPE.get(status) || WebDriverError
+    const ctor = LEGACY_ERROR_CODE_TO_TYPE.get(status) || WebDriverError
 
     if (!value || typeof value !== 'object') {
-      throw new ctor(value + '')
+      throw new ctor(String(value))
     } else {
-      let message = value['message'] + ''
+      const message = String(Reflect.get(value, 'message'))
       if (ctor !== UnexpectedAlertOpenError) {
         throw new ctor(message)
       }
 
       let text = ''
-      if (value['alert'] && typeof value['alert']['text'] === 'string') {
-        text = value['alert']['text']
+      const alert = Reflect.get(value, 'alert')
+      if (isObject(alert) && typeof alert.text === 'string') {
+        text = alert.text
       }
       throw new UnexpectedAlertOpenError(message, text)
     }
   }
   return responseObj
-}
-
-// PUBLIC API
-
-module.exports = {
-  ErrorCode,
-
-  WebDriverError,
-  DetachedShadowRootError,
-  ElementClickInterceptedError,
-  ElementNotInteractableError,
-  ElementNotSelectableError,
-  InsecureCertificateError,
-  InvalidArgumentError,
-  InvalidCookieDomainError,
-  InvalidCoordinatesError,
-  InvalidElementStateError,
-  InvalidSelectorError,
-  JavascriptError,
-  MoveTargetOutOfBoundsError,
-  NoSuchAlertError,
-  NoSuchCookieError,
-  NoSuchElementError,
-  NoSuchFrameError,
-  NoSuchShadowRootError,
-  NoSuchSessionError,
-  NoSuchWindowError,
-  ScriptTimeoutError,
-  SessionNotCreatedError,
-  StaleElementReferenceError,
-  TimeoutError,
-  UnableToSetCookieError,
-  UnableToCaptureScreenError,
-  UnexpectedAlertOpenError,
-  UnknownCommandError,
-  UnknownMethodError,
-  UnsupportedOperationError,
-  checkLegacyResponse,
-  encodeError,
-  isErrorResponse,
-  throwDecodedError,
 }

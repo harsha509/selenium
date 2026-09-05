@@ -15,63 +15,53 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
-const { Capabilities } = require('./capabilities')
+import { Capabilities, CapabilitiesLike } from './capabilities'
 
 /**
  * Contains information about a single WebDriver session.
  */
-class Session {
-  /**
-   * @param {string} id The session ID.
-   * @param {!./capabilities.Capabilities} capabilities
-   *     The session capabilities.
-   */
-  constructor(id, capabilities) {
-    /** @private {string} */
-    this.id_ = id
+export class Session {
+  private readonly id_: string
+  private readonly caps_: Capabilities
 
-    /** @private {!Capabilities} */
-    this.caps_ =
-      capabilities instanceof Capabilities
-        ? /** @type {!Capabilities} */ (capabilities)
-        : new Capabilities(capabilities)
+  /**
+   * @param id The session ID.
+   * @param capabilities The session capabilities.
+   */
+  constructor(id: string, capabilities: CapabilitiesLike) {
+    this.id_ = id
+    this.caps_ = capabilities instanceof Capabilities ? capabilities : new Capabilities(capabilities)
   }
 
   /**
-   * @return {string} This session's ID.
+   * @return This session's ID.
    */
-  getId() {
+  getId(): string {
     return this.id_
   }
 
   /**
-   * @return {!Capabilities} This session's capabilities.
+   * @return This session's capabilities.
    */
-  getCapabilities() {
+  getCapabilities(): Capabilities {
     return this.caps_
   }
 
   /**
    * Retrieves the value of a specific capability.
-   * @param {string} key The capability to retrieve.
-   * @return {*} The capability value.
+   * @param key The capability to retrieve.
+   * @return The capability value.
    */
-  getCapability(key) {
+  getCapability(key: string): unknown {
     return this.caps_.get(key)
   }
 
   /**
    * Returns the JSON representation of this object, which is just the string
    * session ID.
-   * @return {string} The JSON representation of this Session.
+   * @return The JSON representation of this Session.
    */
-  toJSON() {
+  toJSON(): string {
     return this.getId()
   }
 }
-
-// PUBLIC API
-
-module.exports = { Session }

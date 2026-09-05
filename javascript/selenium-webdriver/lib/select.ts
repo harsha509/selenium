@@ -15,59 +15,46 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/*
- * Licensed to the Software Freedom Conservancy (SFC) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The SFC licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+import { By, Locator } from './by'
+import { UnsupportedOperationError } from './error'
 
-'use strict'
-
-const { By } = require('./by')
-const error = require('./error')
+/** The subset of a WebElement that {@link Select} drives. */
+export interface SelectElement {
+  getAttribute(attributeName: string): Promise<string | null>
+  findElement(locator: Locator): Promise<SelectElement>
+  findElements(locator: Locator): Promise<SelectElement[]>
+  getText(): Promise<string>
+  isSelected(): Promise<boolean>
+  isEnabled(): Promise<boolean>
+  click(): Promise<void>
+}
 
 /**
  * ISelect interface makes a protocol for all kind of select elements (standard html and custom
  * model)
- *
- * @interface
  */
-// eslint-disable-next-line no-unused-vars
-class ISelect {
+interface ISelect {
   /**
-   * @return {!Promise<boolean>} Whether this select element supports selecting multiple options at the same time? This
+   * @return Whether this select element supports selecting multiple options at the same time? This
    * is done by checking the value of the "multiple" attribute.
    */
-  isMultiple() {}
+  isMultiple(): Promise<boolean | undefined>
 
   /**
-   * @return {!Promise<!Array<!WebElement>>} All options belonging to this select tag
+   * @return All options belonging to this select tag
    */
-  getOptions() {}
+  getOptions(): Promise<SelectElement[]>
 
   /**
-   * @return {!Promise<!Array<!WebElement>>} All selected options belonging to this select tag
+   * @return All selected options belonging to this select tag
    */
-  getAllSelectedOptions() {}
+  getAllSelectedOptions(): Promise<SelectElement[]>
 
   /**
-   * @return {!Promise<!WebElement>} The first selected option in this select tag (or the currently selected option in a
+   * @return The first selected option in this select tag (or the currently selected option in a
    * normal select)
    */
-  getFirstSelectedOption() {}
+  getFirstSelectedOption(): Promise<SelectElement>
 
   /**
    * Select all options that display text matching the argument. That is, when given "Bar" this
@@ -75,10 +62,9 @@ class ISelect {
    *
    * &lt;option value="foo"&gt;Bar&lt;/option&gt;
    *
-   * @param {string} text The visible text to match against
-   * @return {Promise<void>}
+   * @param text The visible text to match against
    */
-  selectByVisibleText(text) {} // eslint-disable-line
+  selectByVisibleText(text: string | number): Promise<void>
 
   /**
    * Select all options that have a value matching the argument. That is, when given "foo" this
@@ -86,26 +72,22 @@ class ISelect {
    *
    * &lt;option value="foo"&gt;Bar&lt;/option&gt;
    *
-   * @param {string} value The value to match against
-   * @return {Promise<void>}
+   * @param value The value to match against
    */
-  selectByValue(value) {} // eslint-disable-line
+  selectByValue(value: string): Promise<void>
 
   /**
    * Select the option at the given index. This is done by examining the "index" attribute of an
    * element, and not merely by counting.
    *
-   * @param {Number} index The option at this index will be selected
-   * @return {Promise<void>}
+   * @param index The option at this index will be selected
    */
-  selectByIndex(index) {} // eslint-disable-line
+  selectByIndex(index: number): Promise<void>
 
   /**
    * Clear all selected entries. This is only valid when the SELECT supports multiple selections.
-   *
-   * @return {Promise<void>}
    */
-  deselectAll() {}
+  deselectAll(): Promise<void>
 
   /**
    * Deselect all options that display text matching the argument. That is, when given "Bar" this
@@ -113,39 +95,36 @@ class ISelect {
    *
    * &lt;option value="foo"&gt;Bar&lt;/option&gt;
    *
-   * @param {string} text The visible text to match against
-   * @return {Promise<void>}
+   * @param text The visible text to match against
    */
-  deselectByVisibleText(text) {} // eslint-disable-line
+  deselectByVisibleText(text: string | number): Promise<void>
 
   /**
    * Deselect all options that have a value matching the argument. That is, when given "foo" this
    * would deselect an option like:
    *
-   * @param {string} value The value to match against
-   * @return {Promise<void>}
+   * @param value The value to match against
    */
-  deselectByValue(value) {} // eslint-disable-line
+  deselectByValue(value: string): Promise<void>
 
   /**
    * Deselect the option at the given index. This is done by examining the "index" attribute of an
    * element, and not merely by counting.
    *
-   * @param {Number} index The option at this index will be deselected
-   * @return {Promise<void>}
+   * @param index The option at this index will be deselected
    */
-  deselectByIndex(index) {} // eslint-disable-line
+  deselectByIndex(index: number): Promise<void>
 }
 
-/**
- * @implements ISelect
- */
-class Select {
+export class Select implements ISelect {
+  element: SelectElement
+  multiple: boolean | undefined
+
   /**
    * Create an Select Element
-   * @param {WebElement} element Select WebElement.
+   * @param element Select WebElement.
    */
-  constructor(element) {
+  constructor(element: SelectElement) {
     if (element === null) {
       throw new Error(`Element must not be null. Please provide a valid <select> element.`)
     }
@@ -153,7 +132,7 @@ class Select {
     this.element = element
 
     this.element.getAttribute('tagName').then(function (tagName) {
-      if (tagName.toLowerCase() !== 'select') {
+      if (tagName === null || tagName.toLowerCase() !== 'select') {
         throw new Error(`Select only works on <select> elements`)
       }
     })
@@ -179,12 +158,12 @@ class Select {
    *
    * @param index
    */
-  async selectByIndex(index) {
+  async selectByIndex(index: number): Promise<void> {
     if (index < 0) {
       throw new Error('Index needs to be 0 or any other positive number')
     }
 
-    let options = await this.element.findElements(By.tagName('option'))
+    const options = await this.element.findElements(By.tagName('option'))
 
     if (options.length === 0) {
       throw new Error("Select element doesn't contain any option element")
@@ -196,7 +175,7 @@ class Select {
       )
     }
 
-    for (let option of options) {
+    for (const option of options) {
       if ((await option.getAttribute('index')) === index.toString()) {
         await this.setSelected(option)
       }
@@ -218,15 +197,15 @@ class Select {
    * </example>
    *
    *
-   * @param {string} value value of option element to be selected
+   * @param value value of option element to be selected
    */
-  async selectByValue(value) {
+  async selectByValue(value: string): Promise<void> {
     let matched = false
-    let isMulti = await this.isMultiple()
+    const isMulti = await this.isMultiple()
 
-    let options = await this.element.findElements(By.xpath('.//option[@value = ' + escapeQuotes(value) + ']'))
+    const options = await this.element.findElements(By.xpath('.//option[@value = ' + escapeQuotes(value) + ']'))
 
-    for (let option of options) {
+    for (const option of options) {
       await this.setSelected(option)
 
       if (!isMulti) {
@@ -254,17 +233,17 @@ class Select {
    await selectObject.selectByVisibleText("Option 2");
    * </example>
    *
-   * @param {String|Number} text       text of option element to get selected
+   * @param text       text of option element to get selected
    *
    */
-  async selectByVisibleText(text) {
+  async selectByVisibleText(text: string | number): Promise<void> {
     text = typeof text === 'number' ? text.toString() : text
 
     const xpath = './/option[normalize-space(.) = ' + escapeQuotes(text) + ']'
 
     const options = await this.element.findElements(By.xpath(xpath))
 
-    for (let option of options) {
+    for (const option of options) {
       await this.setSelected(option)
       if (!(await this.isMultiple())) {
         return
@@ -275,7 +254,7 @@ class Select {
 
     if (!matched && text.includes(' ')) {
       const subStringWithoutSpace = getLongestSubstringWithoutSpace(text)
-      let candidates
+      let candidates: SelectElement[]
       if ('' === subStringWithoutSpace) {
         candidates = await this.element.findElements(By.tagName('option'))
       } else {
@@ -285,7 +264,7 @@ class Select {
 
       const trimmed = text.trim()
 
-      for (let option of candidates) {
+      for (const option of candidates) {
         const optionText = await option.getText()
         if (trimmed === optionText.trim()) {
           await this.setSelected(option)
@@ -304,29 +283,25 @@ class Select {
 
   /**
    * Returns a list of all options belonging to this select tag
-   * @returns {!Promise<!Array<!WebElement>>}
    */
-  async getOptions() {
+  async getOptions(): Promise<SelectElement[]> {
     return await this.element.findElements({ tagName: 'option' })
   }
 
   /**
    * Returns a boolean value if the select tag is multiple
-   * @returns {Promise<boolean>}
    */
-  async isMultiple() {
+  async isMultiple(): Promise<boolean | undefined> {
     return this.multiple
   }
 
   /**
    * Returns a list of all selected options belonging to this select tag
-   *
-   * @returns {Promise<void>}
    */
-  async getAllSelectedOptions() {
+  async getAllSelectedOptions(): Promise<SelectElement[]> {
     const opts = await this.getOptions()
-    const results = []
-    for (let options of opts) {
+    const results: SelectElement[] = []
+    for (const options of opts) {
       if (await options.isSelected()) {
         results.push(options)
       }
@@ -336,24 +311,22 @@ class Select {
 
   /**
    * Returns first Selected Option
-   * @returns {Promise<Element>}
    */
-  async getFirstSelectedOption() {
+  async getFirstSelectedOption(): Promise<SelectElement> {
     return (await this.getAllSelectedOptions())[0]
   }
 
   /**
    * Deselects all selected options
-   * @returns {Promise<void>}
    */
-  async deselectAll() {
+  async deselectAll(): Promise<void> {
     if (!this.isMultiple()) {
       throw new Error('You may only deselect all options of a multi-select')
     }
 
     const options = await this.getOptions()
 
-    for (let option of options) {
+    for (const option of options) {
       if (await option.isSelected()) {
         await option.click()
       }
@@ -362,10 +335,9 @@ class Select {
 
   /**
    *
-   * @param {string|Number}text text of option to deselect
-   * @returns {Promise<void>}
+   * @param text text of option to deselect
    */
-  async deselectByVisibleText(text) {
+  async deselectByVisibleText(text: string | number): Promise<void> {
     if (!(await this.isMultiple())) {
       throw new Error('You may only deselect options of a multi-select')
     }
@@ -385,13 +357,12 @@ class Select {
 
   /**
    *
-   * @param {Number} index       index of option element to deselect
+   * @param index       index of option element to deselect
    * Deselect the option at the given index.
    * This is done by examining the "index"
    * attribute of an element, and not merely by counting.
-   * @returns {Promise<void>}
    */
-  async deselectByIndex(index) {
+  async deselectByIndex(index: number): Promise<void> {
     if (!(await this.isMultiple())) {
       throw new Error('You may only deselect options of a multi-select')
     }
@@ -400,7 +371,7 @@ class Select {
       throw new Error('Index needs to be 0 or any other positive number')
     }
 
-    let options = await this.element.findElements(By.tagName('option'))
+    const options = await this.element.findElements(By.tagName('option'))
 
     if (options.length === 0) {
       throw new Error("Select element doesn't contain any option element")
@@ -412,7 +383,7 @@ class Select {
       )
     }
 
-    for (let option of options) {
+    for (const option of options) {
       if ((await option.getAttribute('index')) === index.toString()) {
         if (await option.isSelected()) {
           await option.click()
@@ -423,23 +394,22 @@ class Select {
 
   /**
    *
-   * @param {String} value value of an option to deselect
-   * @returns {Promise<void>}
+   * @param value value of an option to deselect
    */
-  async deselectByValue(value) {
+  async deselectByValue(value: string): Promise<void> {
     if (!(await this.isMultiple())) {
       throw new Error('You may only deselect options of a multi-select')
     }
 
     let matched = false
 
-    let options = await this.element.findElements(By.xpath('.//option[@value = ' + escapeQuotes(value) + ']'))
+    const options = await this.element.findElements(By.xpath('.//option[@value = ' + escapeQuotes(value) + ']'))
 
     if (options.length === 0) {
       throw new Error(`Cannot locate option with value: ${value}`)
     }
 
-    for (let option of options) {
+    for (const option of options) {
       if (await option.isSelected()) {
         await option.click()
       }
@@ -451,17 +421,17 @@ class Select {
     }
   }
 
-  async setSelected(option) {
+  async setSelected(option: SelectElement): Promise<void> {
     if (!(await option.isSelected())) {
       if (!(await option.isEnabled())) {
-        throw new error.UnsupportedOperationError(`You may not select a disabled option`)
+        throw new UnsupportedOperationError(`You may not select a disabled option`)
       }
       await option.click()
     }
   }
 }
 
-function escapeQuotes(toEscape) {
+export function escapeQuotes(toEscape: string): string {
   if (toEscape.includes(`"`) && toEscape.includes(`'`)) {
     const quoteIsLast = toEscape.lastIndexOf(`"`) === toEscape.length - 1
     const substrings = toEscape.split(`"`)
@@ -488,15 +458,13 @@ function escapeQuotes(toEscape) {
   return `"${toEscape}"`
 }
 
-function getLongestSubstringWithoutSpace(text) {
-  let words = text.split(' ')
+function getLongestSubstringWithoutSpace(text: string): string {
+  const words = text.split(' ')
   let longestString = ''
-  for (let word of words) {
+  for (const word of words) {
     if (word.length > longestString.length) {
       longestString = word
     }
   }
   return longestString
 }
-
-module.exports = { Select, escapeQuotes }

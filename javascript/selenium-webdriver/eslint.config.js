@@ -39,6 +39,14 @@ module.exports = [
   eslintPluginPrettierRecommended,
   mochaPlugin.configs.recommended,
   nodePlugin.configs['flat/recommended-script'],
+  {
+    // Modules converted to .ts are compiled in place; at lint time only the .ts source exists.
+    settings: {
+      n: {
+        tryExtensions: ['.js', '.ts', '.json', '.node', '.mjs', '.cjs'],
+      },
+    },
+  },
   ...tseslint.configs.recommended.map((config) => ({ ...config, files: ['**/*.ts'] })),
   {
     files: ['**/*.ts'],
@@ -62,12 +70,6 @@ module.exports = [
     ignores: ['node_modules/*', 'generator/*', 'devtools/generator/'],
     plugins: {
       'no-only-tests': noOnlyTests,
-    },
-    // Modules converted to .ts are compiled in place; at lint time only the .ts source exists.
-    settings: {
-      n: {
-        tryExtensions: ['.js', '.ts', '.json', '.node', '.mjs', '.cjs'],
-      },
     },
     rules: {
       'no-const-assign': 'error',
