@@ -15,7 +15,43 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { BeforeRequestSent, ResponseStarted } = require('./networkTypes')
+import type WebSocket from 'ws'
+import type BiDi from './index'
+import {
+  BeforeRequestSent,
+  ResponseStarted,
+  InitiatorJson,
+  NavigationJson,
+  RequestDataJson,
+  ResponseDataJson,
+} from './networkTypes'
+
+/** The subset of a WebDriver needed to reach its BiDi connection. */
+interface BidiDriver {
+  getBidi(): Promise<BiDi>
+}
+
+/** The `params` of each network event this inspector reports, as received on the wire. */
+type NetworkEventJson =
+  | {
+      context: string
+      navigation: NavigationJson | null
+      redirectCount: number
+      request: RequestDataJson
+      timestamp: number
+      initiator: InitiatorJson
+    }
+  | {
+      context: string
+      navigation: NavigationJson | null
+      redirectCount: number
+      request: RequestDataJson
+      timestamp: number
+      response: ResponseDataJson
+    }
+
+/** What the inspector hands to a subscribed callback. */
+type NetworkEvent = BeforeRequestSent | ResponseStarted | null
 
 /**
  * @deprecated
@@ -24,32 +60,37 @@ const { BeforeRequestSent, ResponseStarted } = require('./networkTypes')
  *  Goal is to club commands and events under one class called Network.
  */
 class NetworkInspector {
-  constructor(driver, browsingContextIds) {
+  private readonly _driver: BidiDriver
+  private readonly _browsingContextIds: string[] | null
+  bidi!: BiDi
+  ws!: WebSocket
+
+  constructor(driver: BidiDriver, browsingContextIds: string[] | null) {
     this._driver = driver
     this._browsingContextIds = browsingContextIds
   }
 
-  async init() {
+  async init(): Promise<void> {
     this.bidi = await this._driver.getBidi()
   }
 
-  async beforeRequestSent(callback) {
+  async beforeRequestSent(callback: (event: NetworkEvent) => void): Promise<void> {
     await this.subscribeAndHandleEvent('network.beforeRequestSent', callback)
   }
 
-  async responseStarted(callback) {
+  async responseStarted(callback: (event: NetworkEvent) => void): Promise<void> {
     await this.subscribeAndHandleEvent('network.responseStarted', callback)
   }
 
-  async responseCompleted(callback) {
+  async responseCompleted(callback: (event: NetworkEvent) => void): Promise<void> {
     await this.subscribeAndHandleEvent('network.responseCompleted', callback)
   }
 
-  async authRequired(callback) {
+  async authRequired(callback: (event: NetworkEvent) => void): Promise<void> {
     await this.subscribeAndHandleEvent('network.authRequired', callback)
   }
 
-  async subscribeAndHandleEvent(eventType, callback) {
+  async subscribeAndHandleEvent(eventType: string, callback: (event: NetworkEvent) => void): Promise<void> {
     if (this._browsingContextIds != null) {
       await this.bidi.subscribe(eventType, this._browsingContextIds)
     } else {
@@ -58,12 +99,12 @@ class NetworkInspector {
     await this._on(callback)
   }
 
-  async _on(callback) {
+  async _on(callback: (event: NetworkEvent) => void): Promise<void> {
     this.ws = await this.bidi.socket
     this.ws.on('message', (event) => {
-      const { params } = JSON.parse(Buffer.from(event.toString()))
+      const { params }: { params?: NetworkEventJson } = JSON.parse(event.toString())
       if (params) {
-        let response = null
+        let response: NetworkEvent = null
         if ('initiator' in params) {
           response = new BeforeRequestSent(
             params.context,
@@ -89,10 +130,13 @@ class NetworkInspector {
   }
 }
 
-async function getNetworkInspectorInstance(driver, browsingContextIds = null) {
-  let instance = new NetworkInspector(driver, browsingContextIds)
+async function getNetworkInspectorInstance(
+  driver: BidiDriver,
+  browsingContextIds: string[] | null = null,
+): Promise<NetworkInspector> {
+  const instance = new NetworkInspector(driver, browsingContextIds)
   await instance.init()
   return instance
 }
 
-module.exports = getNetworkInspectorInstance
+export = getNetworkInspectorInstance

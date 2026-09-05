@@ -15,12 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/** Case-insensitive lookup of a realm type's value by name. */
+function findByName(this: Record<string, unknown>, name: string): string | null {
+  return (
+    Object.values(this).find((type): type is string => {
+      return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
+    }) || null
+  )
+}
+
 /**
  * Represents the types of realms.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-RealmType.
- * @enum
  */
-const RealmType = {
+export const RealmType = {
   AUDIO_WORKLET: 'audio-worklet',
   DEDICATED_WORKER: 'dedicated-worker',
   PAINT_WORKLET: 'paint-worklet',
@@ -29,65 +37,69 @@ const RealmType = {
   WINDOW: 'window',
   WORKER: 'worker',
   WORKLET: 'worklet',
+  findByName,
+} as const
 
-  findByName(name) {
-    return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
-    )
-  },
+/** A script.RealmInfo as received on the wire. */
+export interface RealmInfoJson {
+  type?: string
+  realm?: string
+  origin?: string
+  context?: string
+  sandbox?: string | null
 }
 
 /**
  * Represents information about a realm.
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-RealmInfo.
  */
-class RealmInfo {
+export class RealmInfo {
+  realmId: string | null
+  origin: string | null
+  realmType: string | null
+
   /**
    * Constructs a new RealmInfo object.
-   * @param {string} realmId - The ID of the realm.
-   * @param {string} origin - The origin of the realm.
-   * @param {string} realmType - The type of the realm.
+   * @param realmId - The ID of the realm.
+   * @param origin - The origin of the realm.
+   * @param realmType - The type of the realm.
    */
-  constructor(realmId, origin, realmType) {
+  constructor(realmId: string | null, origin: string | null, realmType: string | null) {
     this.realmId = realmId
     this.origin = origin
     this.realmType = realmType
   }
 
-  static fromJson(input) {
-    let realmId = null
-    let origin = null
-    let realmType = null
-    let browsingContext = null
-    let sandbox = null
+  static fromJson(input: RealmInfoJson): RealmInfo {
+    let realmId: string | null = null
+    let origin: string | null = null
+    let realmType: string | null = null
+    let browsingContext: string | null = null
+    let sandbox: string | null = null
 
-    if ('type' in input) {
-      let typeString = input['type']
-      realmType = RealmType.findByName(typeString)
+    if (typeof input.type === 'string') {
+      realmType = RealmType.findByName(input.type)
     }
 
     if ('realm' in input) {
-      realmId = input['realm']
+      realmId = input.realm ?? null
     }
 
     if ('origin' in input) {
-      origin = input['origin']
+      origin = input.origin ?? null
     }
 
     if ('context' in input) {
-      browsingContext = input['context']
+      browsingContext = input.context ?? null
     }
 
     if ('sandbox' in input) {
-      sandbox = input['sandbox']
+      sandbox = input.sandbox ?? null
     }
 
     if (realmType === RealmType.WINDOW) {
       return new WindowRealmInfo(realmId, origin, realmType, browsingContext, sandbox)
     }
-
     return new RealmInfo(realmId, origin, realmType)
   }
 }
@@ -96,24 +108,27 @@ class RealmInfo {
  * Represents information about a window realm.
  * @extends RealmInfo
  */
-class WindowRealmInfo extends RealmInfo {
+export class WindowRealmInfo extends RealmInfo {
+  browsingContext: string | null
+  sandbox: string | null
+
   /**
    * Constructs a new instance of the WindowRealmInfo class.
-   * @param {string} realmId - The ID of the realm.
-   * @param {string} origin - The origin of the realm.
-   * @param {string} realmType - The type of the realm.
-   * @param {string} browsingContext - The browsing context of the realm.
-   * @param {string|null} sandbox - The sandbox of the realm (optional).
+   * @param realmId - The ID of the realm.
+   * @param origin - The origin of the realm.
+   * @param realmType - The type of the realm.
+   * @param browsingContext - The browsing context of the realm.
+   * @param sandbox - The sandbox of the realm (optional).
    */
-  constructor(realmId, origin, realmType, browsingContext, sandbox = null) {
+  constructor(
+    realmId: string | null,
+    origin: string | null,
+    realmType: string | null,
+    browsingContext: string | null,
+    sandbox: string | null = null,
+  ) {
     super(realmId, origin, realmType)
     this.browsingContext = browsingContext
     this.sandbox = sandbox
   }
-}
-
-module.exports = {
-  RealmInfo,
-  RealmType,
-  WindowRealmInfo,
 }

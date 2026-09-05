@@ -16,13 +16,11 @@
 // under the License.
 
 /**
- * Represents the different phases of intercepting network requests and responses.
- * @enum {string}
+ * Enum representing the ownership types.
  */
-const InterceptPhase = {
-  BEFORE_REQUEST_SENT: 'beforeRequestSent',
-  RESPONSE_STARTED: 'responseStarted',
-  AUTH_REQUIRED: 'authRequired',
-}
+export const ResultOwnership = {
+  ROOT: 'root',
+  NONE: 'none',
+} as const
 
-module.exports = { InterceptPhase }
+export type ResultOwnership = (typeof ResultOwnership)[keyof typeof ResultOwnership]

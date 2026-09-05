@@ -15,105 +15,98 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { SameSite, BytesValue } = require('./networkTypes')
+import { SameSite, SameSiteValue, BytesValue } from './networkTypes'
 
 /**
  * Represents a filter for fetching cookies.
  * Described in https://w3c.github.io/webdriver-bidi/#command-storage-getCookies
  */
-class CookieFilter {
-  #map = new Map()
+export class CookieFilter {
+  #map = new Map<string, unknown>()
 
   /**
    * Sets the name of the cookie.
-   *
-   * @param {string} name - The name of the cookie.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param name - The name of the cookie.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  name(name) {
+  name(name: string): this {
     this.#map.set('name', name)
     return this
   }
 
   /**
    * Sets the value of the cookie.
-   *
-   * @param {BytesValue} value - The value to be set. Must be an instance of BytesValue.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param value - The value to be set. Must be an instance of BytesValue.
+   * @returns The updated CookieFilter instance for chaining.
    * @throws {Error} - If the value is not an instance of BytesValue.
    */
-  value(value) {
+  value(value: BytesValue): this {
     if (!(value instanceof BytesValue)) {
       throw new Error(`Value must be an instance of BytesValue. Received:'${value}'`)
     }
+
     this.#map.set('value', Object.fromEntries(value.asMap()))
     return this
   }
 
   /**
    * Sets the domain for the cookie.
-   *
-   * @param {string} domain - The domain to set.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param domain - The domain to set.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  domain(domain) {
+  domain(domain: string): this {
     this.#map.set('domain', domain)
     return this
   }
 
   /**
    * Sets the url path for the cookie to be fetched.
-   *
-   * @param {string} path - The url path for the cookie to be fetched.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param path - The url path for the cookie to be fetched.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  path(path) {
+  path(path: string): this {
     this.#map.set('path', path)
     return this
   }
 
   /**
    * Sets the size of the cookie to be fetched.
-   *
-   * @param {number} size - The size of the cookie.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param size - The size of the cookie.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  size(size) {
+  size(size: number): this {
     this.#map.set('size', size)
     return this
   }
 
   /**
    * Sets the `httpOnly` flag for the cookie filter.
-   *
-   * @param {boolean} httpOnly - The value to set for the `httpOnly` flag.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param httpOnly - The value to set for the `httpOnly` flag.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  httpOnly(httpOnly) {
+  httpOnly(httpOnly: boolean): this {
     this.#map.set('httpOnly', httpOnly)
     return this
   }
 
   /**
    * Sets the flag to fetch secure cookies.
-   *
-   * @param {boolean} secure - Whether the cookie fetched should be secure only or not.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param secure - Whether the cookie fetched should be secure only or not.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  secure(secure) {
+  secure(secure: boolean): this {
     this.#map.set('secure', secure)
     return this
   }
 
   /**
    * Sets the SameSite attribute for the cookie.
-   *
-   * @param {SameSite} sameSite - The SameSite value to be set for the cookie.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
-   * @throws {Error} - If the provided sameSite value is not an instance of SameSite.
+   * @param sameSite - The SameSite value to be set for the cookie.
+   * @returns The updated CookieFilter instance for chaining.
+   * @throws {Error} - If the provided sameSite value is not a value in SameSite.
    */
-  sameSite(sameSite) {
-    if (!(sameSite instanceof SameSite)) {
+  sameSite(sameSite: SameSiteValue): this {
+    if (!Object.values(SameSite).some((allowed) => allowed === sameSite)) {
       throw new Error(`Params must be a value in SameSite. Received:'${sameSite}'`)
     }
     this.#map.set('sameSite', sameSite)
@@ -122,18 +115,15 @@ class CookieFilter {
 
   /**
    * Sets the expiry value.
-   *
-   * @param {number} expiry - The expiry value.
-   * @returns {CookieFilter} - The updated CookieFilter instance for chaining.
+   * @param expiry - The expiry value.
+   * @returns The updated CookieFilter instance for chaining.
    */
-  expiry(expiry) {
+  expiry(expiry: number): this {
     this.#map.set('expiry', expiry)
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, unknown> {
     return this.#map
   }
 }
-
-module.exports = { CookieFilter }

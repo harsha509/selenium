@@ -15,24 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { BytesValue } = require('./networkTypes')
+import { BytesValue, SameSiteValue } from './networkTypes'
 
 /**
  * Represents a partial cookie used to set cookies.
  * Described in https://w3c.github.io/webdriver-bidi/#command-storage-setCookie.
- * @class
  */
-class PartialCookie {
-  #map = new Map()
+export class PartialCookie {
+  #map = new Map<string, unknown>()
 
   /**
    * Represents a partial cookie.
-   * @class
-   * @param {string} name - The name of the cookie.
-   * @param {BytesValue} value - The value of the cookie as an instance of BytesValue.
-   * @param {string} domain - The domain of the cookie.
+   * @param name - The name of the cookie.
+   * @param value - The value of the cookie as an instance of BytesValue.
+   * @param domain - The domain of the cookie.
    */
-  constructor(name, value, domain) {
+  constructor(name: string, value: BytesValue, domain: string) {
     this.#map.set('name', name)
     if (!(value instanceof BytesValue)) {
       throw new Error(`Value must be an instance of BytesValue. Received:'${value}'`)
@@ -43,73 +41,65 @@ class PartialCookie {
 
   /**
    * Sets the path for the cookie.
-   *
-   * @param {string} path - The path for the cookie.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param path - The path for the cookie.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  path(path) {
+  path(path: string): this {
     this.#map.set('path', path)
     return this
   }
 
   /**
    * Sets the size of the cookie.
-   *
-   * @param {number} size - The size of the cookie.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param size - The size of the cookie.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  size(size) {
+  size(size: number): this {
     this.#map.set('size', size)
     return this
   }
 
   /**
    * Sets the `httpOnly` flag for the cookie.
-   *
-   * @param {boolean} httpOnly - The value to set for the `httpOnly` flag.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param httpOnly - The value to set for the `httpOnly` flag.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  httpOnly(httpOnly) {
+  httpOnly(httpOnly: boolean): this {
     this.#map.set('httpOnly', httpOnly)
     return this
   }
 
   /**
    * Sets the secure flag for the cookie.
-   *
-   * @param {boolean} secure - Indicates whether the cookie should only be sent over secure connections.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param secure - Indicates whether the cookie should only be sent over secure connections.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  secure(secure) {
+  secure(secure: boolean): this {
     this.#map.set('secure', secure)
     return this
   }
 
   /**
    * Sets the SameSite attribute for the cookie.
-   *
-   * @param {SameSite} sameSite - The SameSite attribute value for the cookie.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param sameSite - The SameSite attribute value for the cookie.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  sameSite(sameSite) {
+  sameSite(sameSite: SameSiteValue): this {
     this.#map.set('sameSite', sameSite)
     return this
   }
 
   /**
    * Sets the expiry for the cookie.
-   *
-   * @param {number} expiry - The expiry time of the cookie.
-   * @returns {PartialCookie} - The updated PartialCookie instance for chaining.
+   * @param expiry - The expiry time of the cookie.
+   * @returns The updated PartialCookie instance for chaining.
    */
-  expiry(expiry) {
+  expiry(expiry: number): this {
     this.#map.set('expiry', expiry)
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, unknown> {
     return this.#map
   }
 }
-
-module.exports = { PartialCookie }

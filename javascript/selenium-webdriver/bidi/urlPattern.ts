@@ -19,16 +19,16 @@
  * Represents a URL pattern to intercept.
  * Described in network.UrlPatternPattern https://w3c.github.io/webdriver-bidi/#type-network-UrlPattern
  */
-class UrlPattern {
-  #map = new Map()
+export class UrlPattern {
+  #map = new Map<string, string>()
 
   /**
    * Sets the protocol for the URL pattern.
    *
-   * @param {string} protocol - The protocol to set.
-   * @returns {UrlPattern} - Returns the updated instance of the URL pattern for chaining.
+   * @param protocol - The protocol to set.
+   * @returns Returns the updated instance of the URL pattern for chaining.
    */
-  protocol(protocol) {
+  protocol(protocol: string): this {
     this.#map.set('protocol', protocol)
     return this
   }
@@ -36,10 +36,10 @@ class UrlPattern {
   /**
    * Sets the hostname for the URL pattern.
    *
-   * @param {string} hostname - The hostname to set.
-   * @returns {UrlPattern} - Returns the updated instance of the URL pattern for chaining.
+   * @param hostname - The hostname to set.
+   * @returns Returns the updated instance of the URL pattern for chaining.
    */
-  hostname(hostname) {
+  hostname(hostname: string): this {
     this.#map.set('hostname', hostname)
     return this
   }
@@ -47,11 +47,11 @@ class UrlPattern {
   /**
    * Sets the port for the URL pattern.
    *
-   * @param {number} port - The port number to set.
-   * @returns {UrlPattern} - Returns the updated instance of the URL pattern for chaining.
+   * @param port - The port number to set.
+   * @returns Returns the updated instance of the URL pattern for chaining.
    * @throws {Error} - Throws an error if the port is not a number.
    */
-  port(port) {
+  port(port: number): this {
     if (typeof port === 'number') {
       this.#map.set('port', port.toString())
     } else {
@@ -63,10 +63,10 @@ class UrlPattern {
   /**
    * Sets the pathname for the URL pattern.
    *
-   * @param {string} pathname - The pathname to set.
-   * @returns {UrlPattern} - Returns the updated instance of the URL pattern for chaining.
+   * @param pathname - The pathname to set.
+   * @returns Returns the updated instance of the URL pattern for chaining.
    */
-  pathname(pathname) {
+  pathname(pathname: string): this {
     this.#map.set('pathname', pathname)
     return this
   }
@@ -74,18 +74,16 @@ class UrlPattern {
   /**
    * Sets the search parameter in the URL pattern.
    *
-   * @param {string} search - The search parameter to be set.
-   * @returns {UrlPattern} - Returns the updated instance of the URL pattern for chaining.
+   * @param search - The search parameter to be set.
+   * @returns Returns the updated instance of the URL pattern for chaining.
    */
-  search(search) {
+  search(search: string): this {
     this.#map.set('search', search)
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, string> {
     this.#map.set('type', 'pattern')
     return this.#map
   }
 }
-
-module.exports = { UrlPattern }

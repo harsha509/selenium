@@ -15,12 +15,20 @@
 // specific language governing permissions and limitations
 // under the License.
 
+/** Case-insensitive lookup of a type constant's value by name. */
+function findByName(this: Record<string, unknown>, name: string): string | null {
+  return (
+    Object.values(this).find((type): type is string => {
+      return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
+    }) || null
+  )
+}
+
 /**
  * Represents a primitive type.
- * @enum
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-PrimitiveProtocolValue.
  */
-const PrimitiveType = {
+export const PrimitiveType = {
   UNDEFINED: 'undefined',
   NULL: 'null',
   STRING: 'string',
@@ -28,22 +36,14 @@ const PrimitiveType = {
   SPECIAL_NUMBER: 'number',
   BOOLEAN: 'boolean',
   BIGINT: 'bigint',
-
-  findByName(name) {
-    return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
-    )
-  },
-}
+  findByName,
+} as const
 
 /**
  * Represents a non-primitive type.
- * @enum
  * Described inhttps://w3c.github.io/webdriver-bidi/#type-script-RemoteValue.
  */
-const NonPrimitiveType = {
+export const NonPrimitiveType = {
   ARRAY: 'array',
   DATE: 'date',
   MAP: 'map',
@@ -51,22 +51,14 @@ const NonPrimitiveType = {
   REGULAR_EXPRESSION: 'regexp',
   SET: 'set',
   CHANNEL: 'channel',
-
-  findByName(name) {
-    return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
-    )
-  },
-}
+  findByName,
+} as const
 
 /**
  * Represents a remote value type.
- * @enum
  * Described inhttps://w3c.github.io/webdriver-bidi/#type-script-RemoteValue.
  */
-const RemoteType = {
+export const RemoteType = {
   SYMBOL: 'symbol',
   FUNCTION: 'function',
   WEAK_MAP: 'weakmap',
@@ -82,31 +74,18 @@ const RemoteType = {
   HTML_COLLECTION: 'htmlcollection',
   NODE: 'node',
   WINDOW: 'window',
-
-  findByName(name) {
-    return (
-      Object.values(this).find((type) => {
-        return typeof type === 'string' && name.toLowerCase() === type.toLowerCase()
-      }) || null
-    )
-  },
-}
+  findByName,
+} as const
 
 /**
  * Represents a special number type.
- * @enum
  * Described in https://w3c.github.io/webdriver-bidi/#type-script-PrimitiveProtocolValue.
  */
-const SpecialNumberType = {
+export const SpecialNumberType = {
   NAN: 'NaN',
   MINUS_ZERO: '-0',
   INFINITY: 'Infinity',
   MINUS_INFINITY: '-Infinity',
-}
+} as const
 
-module.exports = {
-  PrimitiveType,
-  NonPrimitiveType,
-  RemoteType,
-  SpecialNumberType,
-}
+export type SpecialNumberType = (typeof SpecialNumberType)[keyof typeof SpecialNumberType]

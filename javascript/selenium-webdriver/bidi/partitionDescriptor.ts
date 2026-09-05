@@ -17,13 +17,14 @@
 
 /**
  * Represents the types of partition descriptors.
- * @enum {string}
  * Described in https://w3c.github.io/webdriver-bidi/#command-storage-getCookies.
  */
 const Type = {
   CONTEXT: 'context',
   STORAGE_KEY: 'storageKey',
-}
+} as const
+
+type Type = (typeof Type)[keyof typeof Type]
 
 /**
  * Represents a partition descriptor.
@@ -31,13 +32,13 @@ const Type = {
  */
 class PartitionDescriptor {
   /*eslint no-unused-private-class-members: "off"*/
-  #type
+  #type: Type
 
   /**
    * Constructs a new PartitionDescriptor instance.
-   * @param {Type} type - The type of the partition.
+   * @param type - The type of the partition.
    */
-  constructor(type) {
+  constructor(type: Type) {
     this.#type = type
   }
 }
@@ -46,16 +47,16 @@ class PartitionDescriptor {
  * Represents a partition descriptor for a browsing context.
  * @extends PartitionDescriptor
  */
-class BrowsingContextPartitionDescriptor extends PartitionDescriptor {
-  #context = null
+export class BrowsingContextPartitionDescriptor extends PartitionDescriptor {
+  #context: string | null = null
 
-  constructor(context) {
+  constructor(context: string) {
     super(Type.CONTEXT)
     this.#context = context
   }
 
-  asMap() {
-    const map = new Map()
+  asMap(): Map<string, unknown> {
+    const map = new Map<string, unknown>()
     map.set('type', Type.CONTEXT)
     map.set('context', this.#context)
     return map
@@ -66,8 +67,8 @@ class BrowsingContextPartitionDescriptor extends PartitionDescriptor {
  * Represents a partition descriptor for storage key.
  * @extends PartitionDescriptor
  */
-class StorageKeyPartitionDescriptor extends PartitionDescriptor {
-  #map = new Map()
+export class StorageKeyPartitionDescriptor extends PartitionDescriptor {
+  #map = new Map<string, unknown>()
 
   constructor() {
     super(Type.STORAGE_KEY)
@@ -76,10 +77,10 @@ class StorageKeyPartitionDescriptor extends PartitionDescriptor {
 
   /**
    * Sets the user context for the partition descriptor.
-   * @param {any} userContext - The user context to set.
-   * @returns {PartitionDescriptor} - The updated partition descriptor instance for chaining.
+   * @param userContext - The user context to set.
+   * @returns The updated partition descriptor instance for chaining.
    */
-  userContext(userContext) {
+  userContext(userContext: string): this {
     this.#map.set('userContext', userContext)
     return this
   }
@@ -87,17 +88,15 @@ class StorageKeyPartitionDescriptor extends PartitionDescriptor {
   /**
    * Sets the source origin for the partition descriptor.
    *
-   * @param {string} sourceOrigin - The source origin to set.
-   * @returns {PartitionDescriptor} - The updated PartitionDescriptor instance for chaining.
+   * @param sourceOrigin - The source origin to set.
+   * @returns The updated PartitionDescriptor instance for chaining.
    */
-  sourceOrigin(sourceOrigin) {
+  sourceOrigin(sourceOrigin: string): this {
     this.#map.set('sourceOrigin', sourceOrigin)
     return this
   }
 
-  asMap() {
+  asMap(): Map<string, unknown> {
     return this.#map
   }
 }
-
-module.exports = { BrowsingContextPartitionDescriptor, StorageKeyPartitionDescriptor }

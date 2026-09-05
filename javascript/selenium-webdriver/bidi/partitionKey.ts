@@ -19,35 +19,31 @@
  * Represents a partition key of cookie storage.
  * Described in https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey.
  */
-class PartitionKey {
-  #userContext
-  #sourceOrigin
+export class PartitionKey {
+  #userContext: string
+  #sourceOrigin: string
 
   /**
    * Constructs a new PartitionKey object.
-   * @param {string} userContext - The user context.
-   * @param {string} sourceOrigin - The source origin.
+   * @param userContext - The user context.
+   * @param sourceOrigin - The source origin.
    */
-  constructor(userContext, sourceOrigin) {
+  constructor(userContext: string, sourceOrigin: string) {
     this.#userContext = userContext
     this.#sourceOrigin = sourceOrigin
   }
 
   /**
    * Gets the user context.
-   * @returns {string} The user context.
    */
-  get userContext() {
+  get userContext(): string {
     return this.#userContext
   }
 
   /**
    * Gets the source origin.
-   * @returns {string} The source origin.
    */
-  get sourceOrigin() {
+  get sourceOrigin(): string {
     return this.#sourceOrigin
   }
 }
-
-module.exports = { PartitionKey }

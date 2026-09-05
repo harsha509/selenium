@@ -15,13 +15,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { UrlPattern } = require('./urlPattern')
+import { UrlPattern } from './urlPattern'
+import type { InterceptPhase } from './interceptPhase'
 
-class AddInterceptParameters {
-  #phases = []
-  #urlPatterns = []
+/** One serialised URL pattern: a builder's map, or a raw string pattern. */
+type UrlPatternJson = Record<string, string> | { type: 'string'; pattern: string }
 
-  constructor(phases) {
+export class AddInterceptParameters {
+  #phases: InterceptPhase[] = []
+  #urlPatterns: UrlPatternJson[] = []
+
+  constructor(phases: InterceptPhase | InterceptPhase[]) {
     if (phases instanceof Array) {
       phases.forEach((phase) => this.#phases.push(phase))
     } else {
@@ -32,11 +36,11 @@ class AddInterceptParameters {
   /**
    * Adds a URL pattern to intercept.
    *
-   * @param {UrlPattern} pattern - The URL pattern to add.
-   * @returns {AddInterceptParameters} - Returns the current instance of the class AddInterceptParameters for chaining.
+   * @param pattern - The URL pattern to add.
+   * @returns Returns the current instance of the class AddInterceptParameters for chaining.
    * @throws {Error} - Throws an error if the pattern is not an instance of UrlPattern.
    */
-  urlPattern(pattern) {
+  urlPattern(pattern: UrlPattern): this {
     if (!(pattern instanceof UrlPattern)) {
       throw new Error(`Pattern must be an instance of UrlPattern. Received: '${pattern})'`)
     }
@@ -47,11 +51,11 @@ class AddInterceptParameters {
   /**
    * Adds array of URL patterns to intercept.
    *
-   * @param {UrlPattern[]} patterns - An array of UrlPattern instances representing the URL patterns to intercept.
-   * @returns {AddInterceptParameters} - Returns the instance of AddInterceptParameters for chaining.
+   * @param patterns - An array of UrlPattern instances representing the URL patterns to intercept.
+   * @returns Returns the instance of AddInterceptParameters for chaining.
    * @throws {Error} - Throws an error if the pattern is not an instance of UrlPattern.
    */
-  urlPatterns(patterns) {
+  urlPatterns(patterns: UrlPattern[]): this {
     patterns.forEach((pattern) => {
       if (!(pattern instanceof UrlPattern)) {
         throw new Error(`Pattern must be an instance of UrlPattern. Received:'${pattern}'`)
@@ -64,11 +68,11 @@ class AddInterceptParameters {
   /**
    * Adds string URL to intercept.
    *
-   * @param {string} pattern - The URL pattern to be added.
-   * @returns {AddInterceptParameters} - Returns the instance of AddInterceptParameters for chaining..
+   * @param pattern - The URL pattern to be added.
+   * @returns Returns the instance of AddInterceptParameters for chaining..
    * @throws {Error} - If the pattern is not an instance of String.
    */
-  urlStringPattern(pattern) {
+  urlStringPattern(pattern: string): this {
     if (typeof pattern !== 'string') {
       throw new Error(`Pattern must be an instance of String. Received:'${pattern}'`)
     }
@@ -79,10 +83,10 @@ class AddInterceptParameters {
 
   /**
    * Adds array of string URLs to intercept.
-   * @param {string[]} patterns - An array of URL string patterns.
-   * @returns {this} - Returns the instance of AddInterceptParameters for chaining.
+   * @param patterns - An array of URL string patterns.
+   * @returns Returns the instance of AddInterceptParameters for chaining.
    */
-  urlStringPatterns(patterns) {
+  urlStringPatterns(patterns: string[]): this {
     patterns.forEach((pattern) => {
       if (typeof pattern !== 'string') {
         throw new Error(`Pattern must be an instance of String. Received:'${pattern}'`)
@@ -92,15 +96,12 @@ class AddInterceptParameters {
     return this
   }
 
-  asMap() {
-    const map = new Map()
+  asMap(): Map<string, unknown> {
+    const map = new Map<string, unknown>()
     map.set('phases', this.#phases)
     if (this.#urlPatterns.length > 0) {
       map.set('urlPatterns', this.#urlPatterns)
     }
-
     return map
   }
 }
-
-module.exports = { AddInterceptParameters }

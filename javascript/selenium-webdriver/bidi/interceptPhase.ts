@@ -15,26 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { LocalValue } = require('./protocolValue')
-
 /**
- * @deprecated
- * in favor of LocalValue methods for all argument values.
- * This extra wrapper is not required.
+ * Represents the different phases of intercepting network requests and responses.
  */
-class ArgumentValue {
-  constructor(value) {
-    this.value = value
-  }
+export const InterceptPhase = {
+  BEFORE_REQUEST_SENT: 'beforeRequestSent',
+  RESPONSE_STARTED: 'responseStarted',
+  AUTH_REQUIRED: 'authRequired',
+} as const
 
-  asMap() {
-    if (this.value instanceof LocalValue) {
-      return this.value.asMap()
-    } else {
-      // ReferenceValue
-      return this.value.asMap()
-    }
-  }
-}
-
-module.exports = { ArgumentValue }
+export type InterceptPhase = (typeof InterceptPhase)[keyof typeof InterceptPhase]

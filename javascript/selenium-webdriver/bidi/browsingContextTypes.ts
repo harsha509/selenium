@@ -19,8 +19,13 @@
  * Represents information about a browsing context.
  * Described in https://w3c.github.io/webdriver-bidi/#type-browsingContext-Info
  */
-class BrowsingContextInfo {
-  constructor(id, url, children, parentBrowsingContext) {
+export class BrowsingContextInfo {
+  private readonly _id: string
+  private readonly _url: string
+  private readonly _children: unknown[] | null
+  private readonly _parentBrowsingContext: string | null
+
+  constructor(id: string, url: string, children: unknown[] | null, parentBrowsingContext: string | null) {
     this._id = id
     this._url = url
     this._children = children
@@ -29,33 +34,29 @@ class BrowsingContextInfo {
 
   /**
    * Get the ID of the browsing context.
-   * @returns {string} The ID of the browsing context.
    */
-  get id() {
+  get id(): string {
     return this._id
   }
 
   /**
    * Get the URL of the browsing context.
-   * @returns {string} The URL of the browsing context.
    */
-  get url() {
+  get url(): string {
     return this._url
   }
 
   /**
-   * Get the children of the browsing context.
-   * @returns {Array<BrowsingContextInfo>} The children of the browsing context.
+   * Get the children of the browsing context, as received on the wire.
    */
-  get children() {
+  get children(): unknown[] | null {
     return this._children
   }
 
   /**
-   * Get the parent browsing context.
-   * @returns {BrowsingContextInfo} The parent browsing context.
+   * Get the parent browsing context id.
    */
-  get parentBrowsingContext() {
+  get parentBrowsingContext(): string | null {
     return this._parentBrowsingContext
   }
 }
@@ -64,15 +65,20 @@ class BrowsingContextInfo {
  * Represents information about a navigation.
  * Described in https://w3c.github.io/webdriver-bidi/#type-browsingContext-NavigationInfo.
  */
-class NavigationInfo {
+export class NavigationInfo {
+  browsingContextId: string
+  navigationId: string
+  timestamp: number
+  url: string
+
   /**
    * Constructs a new NavigationInfo object.
-   * @param {string} browsingContextId - The ID of the browsing context.
-   * @param {string} navigationId - The ID of the navigation.
-   * @param {number} timestamp - The timestamp of the navigation.
-   * @param {string} url - The URL of the page navigated to.
+   * @param browsingContextId - The ID of the browsing context.
+   * @param navigationId - The ID of the navigation.
+   * @param timestamp - The timestamp of the navigation.
+   * @param url - The URL of the page navigated to.
    */
-  constructor(browsingContextId, navigationId, timestamp, url) {
+  constructor(browsingContextId: string, navigationId: string, timestamp: number, url: string) {
     this.browsingContextId = browsingContextId
     this.navigationId = navigationId
     this.timestamp = timestamp
@@ -80,20 +86,26 @@ class NavigationInfo {
   }
 }
 
-class UserPromptOpened {
-  constructor(browsingContextId, type, message) {
+export class UserPromptOpened {
+  browsingContextId: string
+  type: string
+  message: string
+
+  constructor(browsingContextId: string, type: string, message: string) {
     this.browsingContextId = browsingContextId
     this.type = type
     this.message = message
   }
 }
 
-class UserPromptClosed {
-  constructor(browsingContextId, accepted, userText = undefined) {
+export class UserPromptClosed {
+  browsingContextId: string
+  accepted: boolean
+  userText: string | undefined
+
+  constructor(browsingContextId: string, accepted: boolean, userText: string | undefined = undefined) {
     this.browsingContextId = browsingContextId
     this.accepted = accepted
     this.userText = userText
   }
 }
-
-module.exports = { BrowsingContextInfo, NavigationInfo, UserPromptOpened, UserPromptClosed }

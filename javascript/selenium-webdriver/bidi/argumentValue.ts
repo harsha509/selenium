@@ -15,13 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/**
- * Enum representing the ownership types.
- * @enum {string}
- */
-const ResultOwnership = {
-  ROOT: 'root',
-  NONE: 'none',
-}
+import { LocalValue, ReferenceValue } from './protocolValue'
 
-module.exports = { ResultOwnership }
+/**
+ * @deprecated
+ * in favor of LocalValue methods for all argument values.
+ * This extra wrapper is not required.
+ */
+export class ArgumentValue {
+  value: LocalValue | ReferenceValue
+
+  constructor(value: LocalValue | ReferenceValue) {
+    this.value = value
+  }
+
+  asMap(): Record<string, unknown> {
+    if (this.value instanceof LocalValue) {
+      return this.value.asMap()
+    } else {
+      // ReferenceValue
+      return this.value.asMap()
+    }
+  }
+}
