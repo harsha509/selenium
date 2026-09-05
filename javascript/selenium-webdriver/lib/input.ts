@@ -15,35 +15,35 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * @fileoverview Defines types related to user input with the WebDriver API.
  */
-const { Command, Name } = require('./command')
-const { InvalidArgumentError } = require('./error')
+
+import { Command, Name } from './command'
+import { InvalidArgumentError } from './error'
+import { WebDriver, WebElement } from './webdriver'
 
 /**
  * Enumeration of the buttons used in the advanced interactions API.
- * @enum {number}
  */
-const Button = {
+export const Button = {
   LEFT: 0,
   MIDDLE: 1,
   RIGHT: 2,
   BACK: 3,
   FORWARD: 4,
-}
+} as const
+
+export type Button = (typeof Button)[keyof typeof Button]
 
 /**
  * Representations of pressable keys that aren't text.  These are stored in
  * the Unicode PUA (Private Use Area) code points, 0xE000-0xF8FF.  Refer to
  * http://www.google.com.au/search?&q=unicode+pua&btnK=Search
  *
- * @enum {string}
  * @see <https://www.w3.org/TR/webdriver/#keyboard-actions>
  */
-const Key = {
+export const Key = {
   NULL: '\uE000',
   CANCEL: '\uE001', // ^break
   HELP: '\uE002',
@@ -114,23 +114,23 @@ const Key = {
    * @see <https://en.wikipedia.org/wiki/Language_input_keys>
    */
   ZENKAKU_HANKAKU: '\uE040',
-}
 
-/**
- * Simulate pressing many keys at once in a "chord". Takes a sequence of
- * {@linkplain Key keys} or strings, appends each of the values to a string,
- * adds the chord termination key ({@link Key.NULL}) and returns the resulting
- * string.
- *
- * Note: when the low-level webdriver key handlers see Keys.NULL, active
- * modifier keys (CTRL/ALT/SHIFT/etc) release via a keyup event.
- *
- * @param {...string} keys The key sequence to concatenate.
- * @return {string} The null-terminated key sequence.
- */
-Key.chord = function (...keys) {
-  return keys.join('') + Key.NULL
-}
+  /**
+   * Simulate pressing many keys at once in a "chord". Takes a sequence of
+   * {@linkplain Key keys} or strings, appends each of the values to a string,
+   * adds the chord termination key ({@link Key.NULL}) and returns the resulting
+   * string.
+   *
+   * Note: when the low-level webdriver key handlers see Keys.NULL, active
+   * modifier keys (CTRL/ALT/SHIFT/etc) release via a keyup event.
+   *
+   * @param keys The key sequence to concatenate.
+   * @return The null-terminated key sequence.
+   */
+  chord(...keys: string[]): string {
+    return keys.join('') + Key.NULL
+  },
+} as const
 
 /**
  * Used with {@link ./webelement.WebElement#sendKeys WebElement#sendKeys} on
@@ -146,7 +146,7 @@ Key.chord = function (...keys) {
  * running against a remote
  * [Selenium Server](https://selenium.dev/downloads/).
  */
-class FileDetector {
+export class FileDetector {
   /**
    * Handles the file specified by the given path, preparing it for use with
    * the current browser. If the path does not refer to a valid file, it will
@@ -156,95 +156,110 @@ class FileDetector {
    * This default implementation is a no-op. Subtypes may override this function
    * for custom tailored file handling.
    *
-   * @param {!./webdriver.WebDriver} driver The driver for the current browser.
-   * @param {string} path The path to process.
-   * @return {!Promise<string>} A promise for the processed file path.
-   * @package
+   * @param _driver The driver for the current browser.
+   * @param path The path to process.
+   * @return A promise for the processed file path.
    */
-  handleFile(_driver, path) {
+  handleFile(_driver: WebDriver, path: string): Promise<string> {
     return Promise.resolve(path)
   }
 }
 
 /**
  * Generic description of a single action to send to the remote end.
- *
- * @record
- * @package
  */
-class Action {
-  constructor() {
-    /** @type {!Action.Type} */
-    this.type
-    /** @type {(number|undefined)} */
-    this.duration
-    /** @type {(string|undefined)} */
-    this.value
-    /** @type {(Button|undefined)} */
-    this.button
-    /** @type {(number|undefined)} */
-    this.x
-    /** @type {(number|undefined)} */
-    this.y
-  }
-}
+export class Action {
+  declare type: ActionType
+  declare duration?: number
+  declare value?: string
+  declare button?: Button
+  declare x?: number
+  declare y?: number
+  declare origin?: Origin | WebElement
+  declare width?: number
+  declare height?: number
+  declare pressure?: number
+  declare tangentialPressure?: number
+  declare tiltX?: number
+  declare tiltY?: number
+  declare twist?: number
+  declare altitudeAngle?: number
+  declare azimuthAngle?: number
+  declare deltaX?: number
+  declare deltaY?: number
 
-/**
- * @enum {string}
- * @package
- * @see <https://w3c.github.io/webdriver/webdriver-spec.html#terminology-0>
- */
-Action.Type = {
-  KEY_DOWN: 'keyDown',
-  KEY_UP: 'keyUp',
-  PAUSE: 'pause',
-  POINTER_DOWN: 'pointerDown',
-  POINTER_UP: 'pointerUp',
-  POINTER_MOVE: 'pointerMove',
-  POINTER_CANCEL: 'pointerCancel',
-  SCROLL: 'scroll',
-}
-
-/**
- * Represents a user input device.
- *
- * @abstract
- */
-class Device {
   /**
-   * @param {Device.Type} type the input type.
-   * @param {string} id a unique ID for this device.
+   * @see <https://w3c.github.io/webdriver/webdriver-spec.html#terminology-0>
    */
-  constructor(type, id) {
-    /** @private @const */ this.type_ = type
-    /** @private @const */ this.id_ = id
-  }
-
-  /** @return {!Object} the JSON encoding for this device. */
-  toJSON() {
-    return { type: this.type_, id: this.id_ }
-  }
+  static readonly Type = {
+    KEY_DOWN: 'keyDown',
+    KEY_UP: 'keyUp',
+    PAUSE: 'pause',
+    POINTER_DOWN: 'pointerDown',
+    POINTER_UP: 'pointerUp',
+    POINTER_MOVE: 'pointerMove',
+    POINTER_CANCEL: 'pointerCancel',
+    SCROLL: 'scroll',
+  } as const
 }
+
+export type ActionType = (typeof Action.Type)[keyof typeof Action.Type]
 
 /**
  * Device types supported by the WebDriver protocol.
  *
- * @enum {string}
  * @see <https://w3c.github.io/webdriver/webdriver-spec.html#input-source-state>
  */
-Device.Type = {
+const DEVICE_TYPES = {
   KEY: 'key',
   NONE: 'none',
   POINTER: 'pointer',
   WHEEL: 'wheel',
+} as const
+
+export type DeviceType = (typeof DEVICE_TYPES)[keyof typeof DEVICE_TYPES]
+
+/**
+ * The supported types of pointers.
+ */
+const POINTER_TYPES = {
+  MOUSE: 'mouse',
+  PEN: 'pen',
+  TOUCH: 'touch',
+} as const
+
+export type PointerType = (typeof POINTER_TYPES)[keyof typeof POINTER_TYPES]
+
+/**
+ * Represents a user input device.
+ */
+export class Device {
+  private readonly type_: string
+  private readonly id_: string
+
+  /**
+   * @param type the input type.
+   * @param id a unique ID for this device.
+   */
+  constructor(type: string, id: string) {
+    this.type_ = type
+    this.id_ = id
+  }
+
+  /** @return the JSON encoding for this device. */
+  toJSON(): { type: string; id: string } {
+    return { type: this.type_, id: this.id_ }
+  }
+
+  /** Device types supported by the WebDriver protocol; subclasses expose their own maps. */
+  static readonly Type: Readonly<Record<string, string>> = DEVICE_TYPES
 }
 
 /**
- * @param {(string|Key|number)} key
- * @return {string}
+ * @param key
  * @throws {!(InvalidArgumentError|RangeError)}
  */
-function checkCodePoint(key) {
+function checkCodePoint(key: string | number): string {
   if (typeof key === 'number') {
     return String.fromCodePoint(key)
   }
@@ -263,38 +278,35 @@ function checkCodePoint(key) {
 /**
  * Keyboard input device.
  *
- * @final
  * @see <https://www.w3.org/TR/webdriver/#dfn-key-input-source>
  */
-class Keyboard extends Device {
-  /** @param {string} id the device ID. */
-  constructor(id) {
-    super(Device.Type.KEY, id)
+export class Keyboard extends Device {
+  /** @param id the device ID. */
+  constructor(id: string) {
+    super(DEVICE_TYPES.KEY, id)
   }
 
   /**
    * Generates a key down action.
    *
-   * @param {(Key|string|number)} key the key to press. This key may be
-   *     specified as a {@link Key} value, a specific unicode code point,
-   *     or a string containing a single unicode code point.
-   * @return {!Action} a new key down action.
-   * @package
+   * @param key the key to press. This key may be specified as a {@link Key}
+   *     value, a specific unicode code point, or a string containing a single
+   *     unicode code point.
+   * @return a new key down action.
    */
-  keyDown(key) {
+  keyDown(key: string | number): Action {
     return { type: Action.Type.KEY_DOWN, value: checkCodePoint(key) }
   }
 
   /**
    * Generates a key up action.
    *
-   * @param {(Key|string|number)} key the key to press. This key may be
-   *     specified as a {@link Key} value, a specific unicode code point,
-   *     or a string containing a single unicode code point.
-   * @return {!Action} a new key up action.
-   * @package
+   * @param key the key to press. This key may be specified as a {@link Key}
+   *     value, a specific unicode code point, or a string containing a single
+   *     unicode code point.
+   * @return a new key up action.
    */
-  keyUp(key) {
+  keyUp(key: string | number): Action {
     return { type: Action.Type.KEY_UP, value: checkCodePoint(key) }
   }
 }
@@ -302,47 +314,64 @@ class Keyboard extends Device {
 /**
  * Defines the reference point from which to compute offsets for
  * {@linkplain ./input.Pointer#move pointer move} actions.
- *
- * @enum {string}
  */
-const Origin = {
+export const Origin = {
   /** Compute offsets relative to the pointer's current position. */
   POINTER: 'pointer',
   /** Compute offsets relative to the viewport. */
   VIEWPORT: 'viewport',
+} as const
+
+export type Origin = (typeof Origin)[keyof typeof Origin]
+
+/** Options for a {@link Pointer#move pointer move} action. */
+export interface PointerMoveOptions {
+  x?: number
+  y?: number
+  duration?: number
+  origin?: Origin | WebElement
+  width?: number
+  height?: number
+  pressure?: number
+  tangentialPressure?: number
+  tiltX?: number
+  tiltY?: number
+  twist?: number
+  altitudeAngle?: number
+  azimuthAngle?: number
 }
 
 /**
  * Pointer input device.
  *
- * @final
  * @see <https://www.w3.org/TR/webdriver/#dfn-pointer-input-source>
  */
-class Pointer extends Device {
+export class Pointer extends Device {
+  private readonly pointerType_: string
+
   /**
-   * @param {string} id the device ID.
-   * @param {Pointer.Type} type the pointer type.
+   * @param id the device ID.
+   * @param type the pointer type.
    */
-  constructor(id, type) {
-    super(Device.Type.POINTER, id)
-    /** @private @const */ this.pointerType_ = type
+  constructor(id: string, type: string) {
+    super(DEVICE_TYPES.POINTER, id)
+    this.pointerType_ = type
   }
 
   /** @override */
-  toJSON() {
+  toJSON(): { parameters: { pointerType: string }; type: string; id: string } {
     return Object.assign({ parameters: { pointerType: this.pointerType_ } }, super.toJSON())
   }
 
   /**
-   * @return {!Action} An action that cancels this pointer's current input.
-   * @package
+   * @return An action that cancels this pointer's current input.
    */
-  cancel() {
+  cancel(): Action {
     return { type: Action.Type.POINTER_CANCEL }
   }
 
   /**
-   * @param {!Button=} button The button to press.
+   * @param button The button to press.
    * @param width
    * @param height
    * @param pressure
@@ -352,11 +381,10 @@ class Pointer extends Device {
    * @param twist
    * @param altitudeAngle
    * @param azimuthAngle
-   * @return {!Action} An action to press the specified button with this device.
-   * @package
+   * @return An action to press the specified button with this device.
    */
   press(
-    button = Button.LEFT,
+    button: Button = Button.LEFT,
     width = 0,
     height = 0,
     pressure = 0,
@@ -366,7 +394,7 @@ class Pointer extends Device {
     twist = 0,
     altitudeAngle = 0,
     azimuthAngle = 0,
-  ) {
+  ): Action {
     return {
       type: Action.Type.POINTER_DOWN,
       button,
@@ -383,12 +411,10 @@ class Pointer extends Device {
   }
 
   /**
-   * @param {!Button=} button The button to release.
-   * @return {!Action} An action to release the specified button with this
-   *     device.
-   * @package
+   * @param button The button to release.
+   * @return An action to release the specified button with this device.
    */
-  release(button = Button.LEFT) {
+  release(button: Button = Button.LEFT): Action {
     return { type: Action.Type.POINTER_UP, button }
   }
 
@@ -399,14 +425,8 @@ class Pointer extends Device {
    * {@linkplain Origin.VIEWPORT viewport}, or the center of a specific
    * {@linkplain ./webdriver.WebElement WebElement}.
    *
-   * @param {{
-   *   x: (number|undefined),
-   *   y: (number|undefined),
-   *   duration: (number|undefined),
-   *   origin: (!Origin|!./webdriver.WebElement|undefined),
-   * }=} options the move options.
-   * @return {!Action} The new action.
-   * @package
+   * @param options the move options.
+   * @return The new action.
    */
   move({
     x = 0,
@@ -422,7 +442,7 @@ class Pointer extends Device {
     twist = 0,
     altitudeAngle = 0,
     azimuthAngle = 0,
-  }) {
+  }: PointerMoveOptions): Action {
     return {
       type: Action.Type.POINTER_MOVE,
       origin,
@@ -440,37 +460,37 @@ class Pointer extends Device {
       azimuthAngle,
     }
   }
-}
 
-/**
- * The supported types of pointers.
- * @enum {string}
- */
-Pointer.Type = {
-  MOUSE: 'mouse',
-  PEN: 'pen',
-  TOUCH: 'touch',
+  /** The supported types of pointers. */
+  static readonly Type: Readonly<Record<string, string>> = POINTER_TYPES
 }
 
 class Wheel extends Device {
   /**
-   * @param {string} id the device ID..
+   * @param id the device ID..
    */
-  constructor(id) {
-    super(Device.Type.WHEEL, id)
+  constructor(id: string) {
+    super(DEVICE_TYPES.WHEEL, id)
   }
 
   /**
    * Scrolls a page via the coordinates given
-   * @param {number} x starting x coordinate
-   * @param {number} y starting y coordinate
-   * @param {number} deltaX Delta X to scroll to target
-   * @param {number} deltaY Delta Y to scroll to target
-   * @param {WebElement} origin element origin
-   * @param {number} duration duration ratio be the ratio of time delta and duration
-   * @returns {!Action} An action to scroll with this device.
+   * @param x starting x coordinate
+   * @param y starting y coordinate
+   * @param deltaX Delta X to scroll to target
+   * @param deltaY Delta Y to scroll to target
+   * @param origin element origin
+   * @param duration duration ratio be the ratio of time delta and duration
+   * @returns An action to scroll with this device.
    */
-  scroll(x, y, deltaX, deltaY, origin, duration) {
+  scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+    origin: Origin | WebElement | undefined,
+    duration: number,
+  ): Action {
     return {
       type: Action.Type.SCROLL,
       duration: duration,
@@ -482,6 +502,14 @@ class Wheel extends Device {
     }
   }
 }
+
+/** What {@link Actions} needs to send its sequences to the remote end. */
+export interface ActionExecutor {
+  execute(command: Command): Promise<unknown>
+}
+
+/** One device's action sequence in wire form. */
+export type DeviceSequence = { actions: Action[] } & ReturnType<Device['toJSON']>
 
 /**
  * User facing API for generating complex user gestures. This class should not
@@ -577,61 +605,53 @@ class Wheel extends Device {
  * [client rect]: https://developer.mozilla.org/en-US/docs/Web/API/Element/getClientRects
  * [bounding client rect]: https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect
  *
- * @final
  * @see <https://www.w3.org/TR/webdriver/#actions>
  */
-class Actions {
+export class Actions {
+  private readonly executor_: ActionExecutor
+  private readonly sync_: boolean
+  private readonly keyboard_: Keyboard
+  private readonly mouse_: Pointer
+  private readonly wheel_: Wheel
+  private readonly sequences_: Map<Device, Action[]>
+
   /**
-   * @param {!Executor} executor The object to execute the configured
-   *     actions with.
-   * @param {{async: (boolean|undefined)}} options Options for this action
-   *     sequence (see class description for details).
+   * @param executor The object to execute the configured actions with.
+   * @param options Options for this action sequence (see class description
+   *     for details).
    */
-  constructor(executor, { async = false } = {}) {
-    /** @private @const */
+  constructor(executor: ActionExecutor, { async = false }: { async?: boolean } = {}) {
     this.executor_ = executor
-
-    /** @private @const */
     this.sync_ = !async
-
-    /** @private @const */
     this.keyboard_ = new Keyboard('default keyboard')
-
-    /** @private @const */
-    this.mouse_ = new Pointer('default mouse', Pointer.Type.MOUSE)
-
-    /** @private @const */
+    this.mouse_ = new Pointer('default mouse', POINTER_TYPES.MOUSE)
     this.wheel_ = new Wheel('default wheel')
-
-    /** @private @const {!Map<!Device, !Array<!Action>>} */
-    this.sequences_ = new Map([
+    this.sequences_ = new Map<Device, Action[]>([
       [this.keyboard_, []],
       [this.mouse_, []],
       [this.wheel_, []],
     ])
   }
 
-  /** @return {!Keyboard} the keyboard device handle. */
-  keyboard() {
+  /** @return the keyboard device handle. */
+  keyboard(): Keyboard {
     return this.keyboard_
   }
 
-  /** @return {!Pointer} the mouse pointer device handle. */
-  mouse() {
+  /** @return the mouse pointer device handle. */
+  mouse(): Pointer {
     return this.mouse_
   }
 
-  /** @return {!Wheel} the wheel device handle. */
-  wheel() {
+  /** @return the wheel device handle. */
+  wheel(): Wheel {
     return this.wheel_
   }
 
   /**
-   * @param {!Device} device
-   * @return {!Array<!Action>}
-   * @private
+   * @param device
    */
-  sequence_(device) {
+  private sequence_(device: Device): Action[] {
     let sequence = this.sequences_.get(device)
     if (!sequence) {
       sequence = []
@@ -646,11 +666,11 @@ class Actions {
    * actions, pauses will be inserted for all other devices to ensure all action
    * sequences are the same length.
    *
-   * @param {!Device} device the device to update.
-   * @param {...!Action} actions the actions to insert.
-   * @return {!Actions} a self reference.
+   * @param device the device to update.
+   * @param actions the actions to insert.
+   * @return a self reference.
    */
-  insert(device, ...actions) {
+  insert(device: Device, ...actions: Action[]): this {
     this.sequence_(device).push(...actions)
     return this.sync_ ? this.synchronize() : this
   }
@@ -661,13 +681,12 @@ class Actions {
    * this will insert {@linkplain #pause pauses} so that every device has an
    * explicit action defined at each tick.
    *
-   * @param {...!Device} devices The specific devices to synchronize.
-   *     If unspecified, the action sequences for every device will be
-   *     synchronized.
-   * @return {!Actions} a self reference.
+   * @param devices The specific devices to synchronize. If unspecified, the
+   *     action sequences for every device will be synchronized.
+   * @return a self reference.
    */
-  synchronize(...devices) {
-    let sequences
+  synchronize(...devices: Device[]): this {
+    let sequences: Iterable<Action[]>
     let max = 0
     if (devices.length === 0) {
       for (const s of this.sequences_.values()) {
@@ -675,15 +694,16 @@ class Actions {
       }
       sequences = this.sequences_.values()
     } else {
-      sequences = []
+      const selected: Action[][] = []
       for (const device of devices) {
         const seq = this.sequence_(device)
         max = Math.max(max, seq.length)
-        sequences.push(seq)
+        selected.push(seq)
       }
+      sequences = selected
     }
 
-    const pause = { type: Action.Type.PAUSE, duration: 0 }
+    const pause: Action = { type: Action.Type.PAUSE, duration: 0 }
     for (const seq of sequences) {
       while (seq.length < max) {
         seq.push(pause)
@@ -736,26 +756,24 @@ class Actions {
    *        .keyUp(Key.SHIFT);
    *     await actions.perform();
    *
-   * @param {(number|!Device)=} duration The length of the pause to insert, in
-   *     milliseconds. Alternatively, the duration may be omitted (yielding a
-   *     default 0 ms pause), and the first device to pause may be specified.
-   * @param {...!Device} devices The devices to insert the pause for. If no
-   *     devices are specified, the pause will be inserted for _all_ devices.
-   * @return {!Actions} a self reference.
+   * @param duration The length of the pause to insert, in milliseconds.
+   *     Alternatively, the duration may be omitted (yielding a default 0 ms
+   *     pause), and the first device to pause may be specified.
+   * @param devices The devices to insert the pause for. If no devices are
+   *     specified, the pause will be inserted for _all_ devices.
+   * @return a self reference.
    */
-  pause(duration, ...devices) {
+  pause(duration?: number | Device, ...devices: Device[]): this {
+    let pauseDuration = 0
     if (duration instanceof Device) {
       devices.push(duration)
-      duration = 0
-    } else if (!duration) {
-      duration = 0
+    } else if (duration) {
+      pauseDuration = duration
     }
 
-    const action = { type: Action.Type.PAUSE, duration }
+    const action: Action = { type: Action.Type.PAUSE, duration: pauseDuration }
 
-    // NB: need a properly typed variable for type checking.
-    /** @type {!Iterable<!Device>} */
-    const iterable = devices.length === 0 ? this.sequences_.keys() : devices
+    const iterable: Iterable<Device> = devices.length === 0 ? this.sequences_.keys() : devices
     for (const device of iterable) {
       this.sequence_(device).push(action)
     }
@@ -765,24 +783,24 @@ class Actions {
   /**
    * Inserts an action to press a single key.
    *
-   * @param {(Key|string|number)} key the key to press. This key may be
-   *     specified as a {@link Key} value, a specific unicode code point,
-   *     or a string containing a single unicode code point.
-   * @return {!Actions} a self reference.
+   * @param key the key to press. This key may be specified as a {@link Key}
+   *     value, a specific unicode code point, or a string containing a single
+   *     unicode code point.
+   * @return a self reference.
    */
-  keyDown(key) {
+  keyDown(key: string | number): this {
     return this.insert(this.keyboard_, this.keyboard_.keyDown(key))
   }
 
   /**
    * Inserts an action to release a single key.
    *
-   * @param {(Key|string|number)} key the key to release. This key may be
-   *     specified as a {@link Key} value, a specific unicode code point,
-   *     or a string containing a single unicode code point.
-   * @return {!Actions} a self reference.
+   * @param key the key to release. This key may be specified as a {@link Key}
+   *     value, a specific unicode code point, or a string containing a single
+   *     unicode code point.
+   * @return a self reference.
    */
-  keyUp(key) {
+  keyUp(key: string | number): this {
     return this.insert(this.keyboard_, this.keyboard_.keyUp(key))
   }
 
@@ -794,24 +812,26 @@ class Actions {
    * always be immediately released. In other words, `sendKeys(Key.SHIFT, 'a')`
    * is the same as typing `sendKeys('a')`, _not_ `sendKeys('A')`.
    *
-   * @param {...(Key|string|number)} keys the keys to type.
-   * @return {!Actions} a self reference.
+   * @param keys the keys to type.
+   * @return a self reference.
    */
-  sendKeys(...keys) {
-    const { WebElement } = require('./webdriver')
+  sendKeys(...keys: (string | number | WebElement)[]): this {
+    const actions: Action[] = []
 
-    const actions = []
     if (keys.length > 1 && keys[0] instanceof WebElement) {
       this.click(keys[0])
       keys.shift()
     }
+
     for (const key of keys) {
       if (typeof key === 'string') {
         for (const symbol of key) {
           actions.push(this.keyboard_.keyDown(symbol), this.keyboard_.keyUp(symbol))
         }
-      } else {
+      } else if (typeof key === 'number') {
         actions.push(this.keyboard_.keyDown(key), this.keyboard_.keyUp(key))
+      } else {
+        throw new InvalidArgumentError(`key is not a string: ${key}`)
       }
     }
     return this.insert(this.keyboard_, ...actions)
@@ -820,10 +840,10 @@ class Actions {
   /**
    * Inserts an action to press a mouse button at the mouse's current location.
    *
-   * @param {!Button=} button The button to press; defaults to `LEFT`.
-   * @return {!Actions} a self reference.
+   * @param button The button to press; defaults to `LEFT`.
+   * @return a self reference.
    */
-  press(button = Button.LEFT) {
+  press(button: Button = Button.LEFT): this {
     return this.insert(this.mouse_, this.mouse_.press(button))
   }
 
@@ -831,23 +851,31 @@ class Actions {
    * Inserts an action to release a mouse button at the mouse's current
    * location.
    *
-   * @param {!Button=} button The button to release; defaults to `LEFT`.
-   * @return {!Actions} a self reference.
+   * @param button The button to release; defaults to `LEFT`.
+   * @return a self reference.
    */
-  release(button = Button.LEFT) {
+  release(button: Button = Button.LEFT): this {
     return this.insert(this.mouse_, this.mouse_.release(button))
   }
 
   /**
    * scrolls a page via the coordinates given
-   * @param {number} x starting x coordinate
-   * @param {number} y starting y coordinate
-   * @param {number} deltax delta x to scroll to target
-   * @param {number} deltay delta y to scroll to target
-   * @param {number} duration duration ratio be the ratio of time delta and duration
-   * @returns {!Actions} An action to scroll with this device.
+   * @param x starting x coordinate
+   * @param y starting y coordinate
+   * @param targetDeltaX delta x to scroll to target
+   * @param targetDeltaY delta y to scroll to target
+   * @param origin element origin
+   * @param duration duration ratio be the ratio of time delta and duration
+   * @returns An action to scroll with this device.
    */
-  scroll(x, y, targetDeltaX, targetDeltaY, origin, duration) {
+  scroll(
+    x: number,
+    y: number,
+    targetDeltaX: number,
+    targetDeltaY: number,
+    origin: Origin | WebElement | undefined,
+    duration: number,
+  ): this {
     return this.insert(this.wheel_, this.wheel_.scroll(x, y, targetDeltaX, targetDeltaY, origin, duration))
   }
 
@@ -863,28 +891,22 @@ class Actions {
    * The number of incremental move events generated over this duration is an
    * implementation detail for the remote end.
    *
-   * @param {{
-   *   x: (number|undefined),
-   *   y: (number|undefined),
-   *   duration: (number|undefined),
-   *   origin: (!Origin|!./webdriver.WebElement|undefined),
-   * }=} options The move options. Defaults to moving the mouse to the top-left
-   *     corner of the viewport over 100ms.
-   * @return {!Actions} a self reference.
+   * @param options The move options. Defaults to moving the mouse to the
+   *     top-left corner of the viewport over 100ms.
+   * @return a self reference.
    */
-  move({ x = 0, y = 0, duration = 100, origin = Origin.VIEWPORT } = {}) {
+  move({ x = 0, y = 0, duration = 100, origin = Origin.VIEWPORT }: PointerMoveOptions = {}): this {
     return this.insert(this.mouse_, this.mouse_.move({ x, y, duration, origin }))
   }
 
   /**
    * Short-hand for performing a simple left-click (down/up) with the mouse.
    *
-   * @param {./webdriver.WebElement=} element If specified, the mouse will
-   *     first be moved to the center of the element before performing the
-   *     click.
-   * @return {!Actions} a self reference.
+   * @param element If specified, the mouse will first be moved to the center
+   *     of the element before performing the click.
+   * @return a self reference.
    */
-  click(element) {
+  click(element?: WebElement): this {
     if (element) {
       this.move({ origin: element })
     }
@@ -894,12 +916,11 @@ class Actions {
   /**
    * Short-hand for performing a simple right-click (down/up) with the mouse.
    *
-   * @param {./webdriver.WebElement=} element If specified, the mouse will
-   *     first be moved to the center of the element before performing the
-   *     click.
-   * @return {!Actions} a self reference.
+   * @param element If specified, the mouse will first be moved to the center
+   *     of the element before performing the click.
+   * @return a self reference.
    */
-  contextClick(element) {
+  contextClick(element?: WebElement): this {
     if (element) {
       this.move({ origin: element })
     }
@@ -909,12 +930,11 @@ class Actions {
   /**
    * Short-hand for performing a double left-click with the mouse.
    *
-   * @param {./webdriver.WebElement=} element If specified, the mouse will
-   *     first be moved to the center of the element before performing the
-   *     click.
-   * @return {!Actions} a self reference.
+   * @param element If specified, the mouse will first be moved to the center
+   *     of the element before performing the click.
+   * @return a self reference.
    */
-  doubleClick(element) {
+  doubleClick(element?: WebElement): this {
     return this.click(element).press().release()
   }
 
@@ -928,16 +948,14 @@ class Actions {
    *     specified offset.
    * 4.  Release the left mouse button.
    *
-   * @param {!./webdriver.WebElement} from The element to press the left mouse
-   *     button on to start the drag.
-   * @param {(!./webdriver.WebElement|{x: number, y: number})} to Either another
-   *     element to drag to (will drag to the center of the element), or an
-   *     object specifying the offset to drag by, in pixels.
-   * @return {!Actions} a self reference.
+   * @param from The element to press the left mouse button on to start the
+   *     drag.
+   * @param to Either another element to drag to (will drag to the center of
+   *     the element), or an object specifying the offset to drag by, in
+   *     pixels.
+   * @return a self reference.
    */
-  dragAndDrop(from, to) {
-    // Do not require up top to avoid a cycle that breaks static analysis.
-    const { WebElement } = require('./webdriver')
+  dragAndDrop(from: WebElement, to: WebElement | { x: number; y: number }): this {
     if (!(to instanceof WebElement) && (!to || typeof to.x !== 'number' || typeof to.y !== 'number')) {
       throw new InvalidArgumentError('Invalid drag target; must specify a WebElement or {x, y} offset')
     }
@@ -954,10 +972,10 @@ class Actions {
   /**
    * Releases all keys, pointers, and clears internal state.
    *
-   * @return {!Promise<void>} a promise that will resolve when finished
-   *     clearing all action state.
+   * @return a promise that will resolve when finished clearing all action
+   *     state.
    */
-  clear() {
+  clear(): Promise<unknown> {
     for (const s of this.sequences_.values()) {
       s.length = 0
     }
@@ -967,11 +985,10 @@ class Actions {
   /**
    * Performs the configured action sequence.
    *
-   * @return {!Promise<void>} a promise that will resolve when all actions have
-   *     been completed.
+   * @return a promise that will resolve when all actions have been completed.
    */
-  async perform() {
-    const _actions = []
+  async perform(): Promise<void> {
+    const _actions: DeviceSequence[] = []
     this.sequences_.forEach((actions, device) => {
       if (!isIdle(actions)) {
         actions = actions.concat() // Defensive copy.
@@ -986,8 +1003,8 @@ class Actions {
     await this.executor_.execute(new Command(Name.ACTIONS).setParameter('actions', _actions))
   }
 
-  getSequences() {
-    const _actions = []
+  getSequences(): DeviceSequence[] {
+    const _actions: DeviceSequence[] = []
     this.sequences_.forEach((actions, device) => {
       if (!isIdle(actions)) {
         actions = actions.concat()
@@ -1000,10 +1017,9 @@ class Actions {
 }
 
 /**
- * @param {!Array<!Action>} actions
- * @return {boolean}
+ * @param actions
  */
-function isIdle(actions) {
+function isIdle(actions: Action[]): boolean {
   return actions.length === 0 || actions.every((a) => a.type === Action.Type.PAUSE && !a.duration)
 }
 
@@ -1014,10 +1030,8 @@ function isIdle(actions) {
  * <https://w3c.github.io/webdriver/webdriver-spec.html#dfn-center-point>.
  *
  * __This is only exported for use in internal unit tests. DO NOT USE.__
- *
- * @package
  */
-const INTERNAL_COMPUTE_OFFSET_SCRIPT = `
+export const INTERNAL_COMPUTE_OFFSET_SCRIPT = `
 function computeOffset(el) {
   var rect = el.getClientRects()[0];
   var left = Math.max(0, Math.min(rect.x, rect.x + rect.width));
@@ -1028,23 +1042,7 @@ function computeOffset(el) {
       Math.min(window.innerHeight, Math.max(rect.y, rect.y + rect.height));
   var x = Math.floor(0.5 * (left + right));
   var y = Math.floor(0.5 * (top + bot));
-
   var bbox = el.getBoundingClientRect();
   return [x - bbox.left, y - bbox.top];
 }
 return computeOffset(arguments[0]);`
-
-// PUBLIC API
-
-module.exports = {
-  Action, // For documentation only.
-  Actions,
-  Button,
-  Device,
-  Key,
-  Keyboard,
-  FileDetector,
-  Origin,
-  Pointer,
-  INTERNAL_COMPUTE_OFFSET_SCRIPT,
-}

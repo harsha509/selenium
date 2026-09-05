@@ -39,13 +39,16 @@
  *     }, 1000);
  */
 
-'use strict'
+import * as by from './by'
+import * as error from './error'
+import * as webdriver from './webdriver'
+import type { Alert, WebDriver, WebElement } from './webdriver'
 
-const by = require('./by')
-const error = require('./error')
-const webdriver = require('./webdriver')
 const Condition = webdriver.Condition
 const WebElementCondition = webdriver.WebElementCondition
+
+type Condition<OUT> = webdriver.Condition<OUT>
+type WebElementCondition = webdriver.WebElementCondition
 
 /**
  * Creates a condition that will wait until the input driver is able to switch
@@ -62,29 +65,28 @@ const WebElementCondition = webdriver.WebElementCondition
  * Upon successful resolution of this condition, the driver will be left
  * focused on the new frame.
  *
- * @param {!(number|./webdriver.WebElement|By|
- *           function(!./webdriver.WebDriver): !./webdriver.WebElement)} frame
- *     The frame identifier.
- * @return {!Condition<boolean>} A new condition.
+ * @param frame The frame identifier.
+ * @return A new condition.
  */
-function ableToSwitchToFrame(frame) {
-  let condition
+export function ableToSwitchToFrame(frame: number | WebElement | by.Locator): Condition<boolean | undefined> {
+  let condition: (driver: WebDriver) => Promise<boolean | undefined>
   if (typeof frame === 'number' || frame instanceof webdriver.WebElement) {
     condition = (driver) => attemptToSwitchFrames(driver, frame)
   } else {
     condition = function (driver) {
-      let locator = /** @type {!(By|Function)} */ (frame)
+      const locator = frame
       return driver.findElements(locator).then(function (els) {
         if (els.length) {
           return attemptToSwitchFrames(driver, els[0])
         }
+        return undefined
       })
     }
   }
 
   return new Condition('to be able to switch to frame', condition)
 
-  function attemptToSwitchFrames(driver, frame) {
+  function attemptToSwitchFrames(driver: WebDriver, frame: number | WebElement): Promise<boolean | undefined> {
     return driver
       .switchTo()
       .frame(frame)
@@ -96,6 +98,7 @@ function ableToSwitchToFrame(frame) {
           if (!(e instanceof error.NoSuchFrameError)) {
             throw e
           }
+          return undefined
         },
       )
   }
@@ -105,9 +108,9 @@ function ableToSwitchToFrame(frame) {
  * Creates a condition that waits for an alert to be opened. Upon success, the
  * returned promise will be fulfilled with the handle for the opened alert.
  *
- * @return {!Condition<!./webdriver.Alert>} The new condition.
+ * @return The new condition.
  */
-function alertIsPresent() {
+export function alertIsPresent(): Condition<Alert | undefined> {
   return new Condition('for alert to be present', function (driver) {
     return driver
       .switchTo()
@@ -122,6 +125,7 @@ function alertIsPresent() {
         )) {
           throw e
         }
+        return undefined
       })
   })
 }
@@ -130,10 +134,10 @@ function alertIsPresent() {
  * Creates a condition that will wait for the current page's title to match the
  * given value.
  *
- * @param {string} title The expected page title.
- * @return {!Condition<boolean>} The new condition.
+ * @param title The expected page title.
+ * @return The new condition.
  */
-function titleIs(title) {
+export function titleIs(title: string): Condition<boolean> {
   return new Condition('for title to be ' + JSON.stringify(title), function (driver) {
     return driver.getTitle().then(function (t) {
       return t === title
@@ -145,11 +149,10 @@ function titleIs(title) {
  * Creates a condition that will wait for the current page's title to contain
  * the given substring.
  *
- * @param {string} substr The substring that should be present in the page
- *     title.
- * @return {!Condition<boolean>} The new condition.
+ * @param substr The substring that should be present in the page title.
+ * @return The new condition.
  */
-function titleContains(substr) {
+export function titleContains(substr: string): Condition<boolean> {
   return new Condition('for title to contain ' + JSON.stringify(substr), function (driver) {
     return driver.getTitle().then(function (title) {
       return title.indexOf(substr) !== -1
@@ -161,10 +164,10 @@ function titleContains(substr) {
  * Creates a condition that will wait for the current page's title to match the
  * given regular expression.
  *
- * @param {!RegExp} regex The regular expression to test against.
- * @return {!Condition<boolean>} The new condition.
+ * @param regex The regular expression to test against.
+ * @return The new condition.
  */
-function titleMatches(regex) {
+export function titleMatches(regex: RegExp): Condition<boolean> {
   return new Condition('for title to match ' + regex, function (driver) {
     return driver.getTitle().then(function (title) {
       return regex.test(title)
@@ -176,10 +179,10 @@ function titleMatches(regex) {
  * Creates a condition that will wait for the current page's url to match the
  * given value.
  *
- * @param {string} url The expected page url.
- * @return {!Condition<boolean>} The new condition.
+ * @param url The expected page url.
+ * @return The new condition.
  */
-function urlIs(url) {
+export function urlIs(url: string): Condition<boolean> {
   return new Condition('for URL to be ' + JSON.stringify(url), function (driver) {
     return driver.getCurrentUrl().then(function (u) {
       return u === url
@@ -191,11 +194,10 @@ function urlIs(url) {
  * Creates a condition that will wait for the current page's url to contain
  * the given substring.
  *
- * @param {string} substrUrl The substring that should be present in the current
- *     URL.
- * @return {!Condition<boolean>} The new condition.
+ * @param substrUrl The substring that should be present in the current URL.
+ * @return The new condition.
  */
-function urlContains(substrUrl) {
+export function urlContains(substrUrl: string): Condition<boolean | string> {
   return new Condition('for URL to contain ' + JSON.stringify(substrUrl), function (driver) {
     return driver.getCurrentUrl().then(function (url) {
       return url && url.includes(substrUrl)
@@ -207,10 +209,10 @@ function urlContains(substrUrl) {
  * Creates a condition that will wait for the current page's url to match the
  * given regular expression.
  *
- * @param {!RegExp} regex The regular expression to test against.
- * @return {!Condition<boolean>} The new condition.
+ * @param regex The regular expression to test against.
+ * @return The new condition.
  */
-function urlMatches(regex) {
+export function urlMatches(regex: RegExp): Condition<boolean> {
   return new Condition('for URL to match ' + regex, function (driver) {
     return driver.getCurrentUrl().then(function (url) {
       return regex.test(url)
@@ -222,12 +224,12 @@ function urlMatches(regex) {
  * Creates a condition that will loop until an element is
  * {@link ./webdriver.WebDriver#findElement found} with the given locator.
  *
- * @param {!(By|Function)} locator The locator to use.
- * @return {!WebElementCondition} The new condition.
+ * @param locator The locator to use.
+ * @return The new condition.
  */
-function elementLocated(locator) {
+export function elementLocated(locator: by.Locator): WebElementCondition {
   locator = by.checkedLocator(locator)
-  let locatorStr = typeof locator === 'function' ? 'by function()' : locator + ''
+  const locatorStr = typeof locator === 'function' ? 'by function()' : locator + ''
   return new WebElementCondition('for element to be located ' + locatorStr, function (driver) {
     return driver.findElements(locator).then(function (elements) {
       return elements[0]
@@ -239,13 +241,12 @@ function elementLocated(locator) {
  * Creates a condition that will loop until at least one element is
  * {@link ./webdriver.WebDriver#findElement found} with the given locator.
  *
- * @param {!(By|Function)} locator The locator to use.
- * @return {!Condition<!Array<!./webdriver.WebElement>>} The new
- *     condition.
+ * @param locator The locator to use.
+ * @return The new condition.
  */
-function elementsLocated(locator) {
+export function elementsLocated(locator: by.Locator): Condition<WebElement[] | null> {
   locator = by.checkedLocator(locator)
-  let locatorStr = typeof locator === 'function' ? 'by function()' : locator + ''
+  const locatorStr = typeof locator === 'function' ? 'by function()' : locator + ''
   return new Condition('for at least one element to be located ' + locatorStr, function (driver) {
     return driver.findElements(locator).then(function (elements) {
       return elements.length > 0 ? elements : null
@@ -258,10 +259,10 @@ function elementsLocated(locator) {
  * element is considered stale once it is removed from the DOM, or a new page
  * has loaded.
  *
- * @param {!./webdriver.WebElement} element The element that should become stale.
- * @return {!Condition<boolean>} The new condition.
+ * @param element The element that should become stale.
+ * @return The new condition.
  */
-function stalenessOf(element) {
+export function stalenessOf(element: WebElement): Condition<boolean> {
   return new Condition('element to become stale', function () {
     return element.getTagName().then(
       function () {
@@ -280,11 +281,11 @@ function stalenessOf(element) {
 /**
  * Creates a condition that will wait for the given element to become visible.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @return The new condition.
  * @see ./webdriver.WebDriver#isDisplayed
  */
-function elementIsVisible(element) {
+export function elementIsVisible(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is visible', function () {
     return element.isDisplayed().then((v) => (v ? element : null))
   })
@@ -294,11 +295,11 @@ function elementIsVisible(element) {
  * Creates a condition that will wait for the given element to be in the DOM,
  * yet not visible to the user.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @return The new condition.
  * @see ./webdriver.WebDriver#isDisplayed
  */
-function elementIsNotVisible(element) {
+export function elementIsNotVisible(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is not visible', function () {
     return element.isDisplayed().then((v) => (v ? null : element))
   })
@@ -307,11 +308,11 @@ function elementIsNotVisible(element) {
 /**
  * Creates a condition that will wait for the given element to be enabled.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @return The new condition.
  * @see webdriver.WebDriver#isEnabled
  */
-function elementIsEnabled(element) {
+export function elementIsEnabled(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is enabled', function () {
     return element.isEnabled().then((v) => (v ? element : null))
   })
@@ -320,11 +321,11 @@ function elementIsEnabled(element) {
 /**
  * Creates a condition that will wait for the given element to be disabled.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @return The new condition.
  * @see webdriver.WebDriver#isEnabled
  */
-function elementIsDisabled(element) {
+export function elementIsDisabled(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is disabled', function () {
     return element.isEnabled().then((v) => (v ? null : element))
   })
@@ -332,11 +333,12 @@ function elementIsDisabled(element) {
 
 /**
  * Creates a condition that will wait for the given element to be selected.
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ *
+ * @param element The element to test.
+ * @return The new condition.
  * @see webdriver.WebDriver#isSelected
  */
-function elementIsSelected(element) {
+export function elementIsSelected(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is selected', function () {
     return element.isSelected().then((v) => (v ? element : null))
   })
@@ -345,11 +347,11 @@ function elementIsSelected(element) {
 /**
  * Creates a condition that will wait for the given element to be deselected.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @return The new condition.
  * @see webdriver.WebDriver#isSelected
  */
-function elementIsNotSelected(element) {
+export function elementIsNotSelected(element: WebElement): WebElementCondition {
   return new WebElementCondition('until element is not selected', function () {
     return element.isSelected().then((v) => (v ? null : element))
   })
@@ -360,12 +362,12 @@ function elementIsNotSelected(element) {
  * {@link webdriver.WebDriver#getText visible text} to match the given
  * {@code text} exactly.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @param {string} text The expected text.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @param text The expected text.
+ * @return The new condition.
  * @see webdriver.WebDriver#getText
  */
-function elementTextIs(element, text) {
+export function elementTextIs(element: WebElement, text: string): WebElementCondition {
   return new WebElementCondition('until element text is', function () {
     return element.getText().then((t) => (t === text ? element : null))
   })
@@ -376,12 +378,12 @@ function elementTextIs(element, text) {
  * {@link webdriver.WebDriver#getText visible text} to contain the given
  * substring.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @param {string} substr The substring to search for.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @param substr The substring to search for.
+ * @return The new condition.
  * @see webdriver.WebDriver#getText
  */
-function elementTextContains(element, substr) {
+export function elementTextContains(element: WebElement, substr: string): WebElementCondition {
   return new WebElementCondition('until element text contains', function () {
     return element.getText().then((t) => (t.indexOf(substr) != -1 ? element : null))
   })
@@ -392,38 +394,13 @@ function elementTextContains(element, substr) {
  * {@link webdriver.WebDriver#getText visible text} to match a regular
  * expression.
  *
- * @param {!./webdriver.WebElement} element The element to test.
- * @param {!RegExp} regex The regular expression to test against.
- * @return {!WebElementCondition} The new condition.
+ * @param element The element to test.
+ * @param regex The regular expression to test against.
+ * @return The new condition.
  * @see webdriver.WebDriver#getText
  */
-function elementTextMatches(element, regex) {
+export function elementTextMatches(element: WebElement, regex: RegExp): WebElementCondition {
   return new WebElementCondition('until element text matches', function () {
     return element.getText().then((t) => (regex.test(t) ? element : null))
   })
-}
-
-// PUBLIC API
-
-module.exports = {
-  elementTextMatches,
-  elementTextContains,
-  elementTextIs,
-  elementIsNotSelected,
-  elementIsSelected,
-  elementIsDisabled,
-  ableToSwitchToFrame,
-  elementIsEnabled,
-  elementIsNotVisible,
-  elementIsVisible,
-  stalenessOf,
-  elementsLocated,
-  elementLocated,
-  urlMatches,
-  urlContains,
-  urlIs,
-  titleMatches,
-  titleContains,
-  alertIsPresent,
-  titleIs,
 }
