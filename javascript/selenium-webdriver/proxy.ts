@@ -27,6 +27,4 @@
  *         .build();
  */
 
-'use strict'
-
-module.exports = require('./lib/proxy')
+export * from './lib/proxy'

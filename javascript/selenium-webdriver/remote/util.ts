@@ -15,25 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
-const path = require('node:path')
-const cp = require('node:child_process')
-const logging = require('../lib/logging')
+import * as path from 'node:path'
+import * as cp from 'node:child_process'
+import * as logging from '../lib/logging'
 
 /**
  * returns path to java or 'java' string if JAVA_HOME does not exist in env obj
- * @returns {string}
  */
-function getJavaPath() {
-  return process.env['JAVA_HOME'] ? path.join(process.env['JAVA_HOME'], 'bin/java') : 'java'
+export function getJavaPath(): string {
+  return process.env.JAVA_HOME ? path.join(process.env.JAVA_HOME, 'bin/java') : 'java'
 }
 
 /**
- * @param {string} seleniumStandalonePath path to standalone server
- * @returns {boolean}
+ * @param seleniumStandalonePath path to standalone server
  */
-function isSelenium3x(seleniumStandalonePath) {
+export function isSelenium3x(seleniumStandalonePath: string): boolean {
   const javaPath = getJavaPath()
 
   const execRes = cp.execFileSync(javaPath, ['-jar', seleniumStandalonePath, '--version'])
@@ -42,12 +38,11 @@ function isSelenium3x(seleniumStandalonePath) {
 }
 
 /**
- * @param {string} seleniumStandalonePath path to standalone server
- * @param {Array.<string>} args spawn arguments array
+ * @param seleniumStandalonePath path to standalone server
+ * @param args spawn arguments array
  * returns formatted args based on selenium standalone server version
- * @returns {Array.<string>}
  */
-function formatSpawnArgs(seleniumStandalonePath, args) {
+export function formatSpawnArgs(seleniumStandalonePath: string, args: string[]): string[] {
   if (isSelenium3x(seleniumStandalonePath)) {
     logging
       .getLogger(logging.Type.SERVER)
@@ -59,7 +54,7 @@ function formatSpawnArgs(seleniumStandalonePath, args) {
   const port3xArgFormat = '-port'
   const port4xArgFormat = '--port'
 
-  let formattedArgs = Array.from(args)
+  const formattedArgs = Array.from(args)
 
   const standaloneArgIndex = formattedArgs.findIndex((arg) => arg === seleniumStandalonePath)
   const v3portArgFormat = formattedArgs.findIndex((arg) => arg === port3xArgFormat)
@@ -77,11 +72,4 @@ function formatSpawnArgs(seleniumStandalonePath, args) {
   formattedArgs.splice(standaloneArgIndex + 1, 0, standaloneArg)
 
   return formattedArgs
-}
-
-// PUBLIC API
-module.exports = {
-  getJavaPath,
-  isSelenium3x,
-  formatSpawnArgs,
 }

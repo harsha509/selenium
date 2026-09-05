@@ -185,6 +185,8 @@ ts_project(
     deps = [
         ":node_modules/@types/node",
         ":node_modules/@types/tmp",
+        ":node_modules/@types/ws",
+        ":node_modules/jszip",
     ],
 )
 

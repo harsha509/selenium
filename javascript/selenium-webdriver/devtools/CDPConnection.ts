@@ -15,20 +15,39 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const logging = require('../lib/logging')
+import WebSocket from 'ws'
+import * as logging from '../lib/logging'
 
 const RESPONSE_TIMEOUT = 1000 * 30
 
+/** A CDP command message as sent over the socket. */
+interface CdpMessage {
+  method: string
+  id: number
+  sessionId?: string
+}
+
+/** A parsed CDP response; `id` matches the command it answers. */
+export interface CdpResponse {
+  id: number
+  [key: string]: unknown
+}
+
 class CDPConnection {
-  constructor(wsConnection) {
+  private readonly _wsConnection: WebSocket
+  cmd_id: number
+  targetID: string | null
+  sessionId: string | null
+
+  constructor(wsConnection: WebSocket) {
     this._wsConnection = wsConnection
     this.cmd_id = 0
     this.targetID = null
     this.sessionId = null
   }
 
-  execute(method, params, callback) {
-    let message = {
+  execute(method: string, params: unknown, callback?: (err?: Error) => void): void {
+    const message: CdpMessage = {
       method,
       id: this.cmd_id++,
     }
@@ -40,9 +59,9 @@ class CDPConnection {
     this._wsConnection.send(JSON.stringify(mergedMessage), callback)
   }
 
-  async send(method, params) {
-    let cdp_id = this.cmd_id++
-    let message = {
+  async send(method: string, params: unknown): Promise<CdpResponse> {
+    const cdp_id = this.cmd_id++
+    const message: CdpMessage = {
       method,
       id: cdp_id,
     }
@@ -59,16 +78,17 @@ class CDPConnection {
         handler.off('message', listener)
       }, RESPONSE_TIMEOUT)
 
-      const listener = (data) => {
+      const listener = (data: WebSocket.RawData) => {
         try {
-          const payload = JSON.parse(data.toString())
+          const payload: CdpResponse = JSON.parse(data.toString())
           if (payload.id === cdp_id) {
             clearTimeout(timeoutId)
             handler.off('message', listener)
             resolve(payload)
           }
         } catch (err) {
-          logging.getLogger(logging.Type.BROWSER).severe(`Failed parse message: ${err.message}`)
+          const message = err instanceof Error ? err.message : String(err)
+          logging.getLogger(logging.Type.BROWSER).severe(`Failed parse message: ${message}`)
         }
       }
 
@@ -77,4 +97,4 @@ class CDPConnection {
   }
 }
 
-exports.CdpConnection = CDPConnection
+export { CDPConnection as CdpConnection }
