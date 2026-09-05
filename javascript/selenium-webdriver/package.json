@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
     "cddl": "^0.21.1",
     "cddl2ts": "^0.10.1",
     "clean-jsdoc-theme": "^4.3.3",
@@ -49,7 +50,9 @@
     "prettier": "^3.9.6",
     "serve-index": "^1.9.2",
     "sinon": "^22.1.0",
-    "supports-color": "^10.2.2"
+    "supports-color": "^10.2.2",
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.69.0"
   },
   "scripts": {
     "lint": "eslint .",
