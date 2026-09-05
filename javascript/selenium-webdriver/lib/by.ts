@@ -19,6 +19,8 @@
  * @fileoverview Factory methods for the supported locator strategies.
  */
 
+import type { ShadowRoot, WebDriver, WebElement } from './webdriver'
+
 /**
  * Short-hand expressions for the primary element locator strategies.
  * For example the following two statements are equivalent:
@@ -44,13 +46,11 @@ export type ByHash =
 /** A script body or function accepted by {@link By.js}. */
 export type ScriptSource = string | ((...args: never[]) => unknown)
 
-/** The subset of a WebDriver needed to evaluate a {@link LocatorFunction}. */
-export interface ScriptExecutor {
-  executeScript(script: ScriptSource, ...args: unknown[]): Promise<unknown>
-}
+/** Where an element search starts: the driver (document root), an element, or a shadow root. */
+export type SearchContext = WebDriver | WebElement | ShadowRoot
 
-/** A JavaScript-based locator function, as returned by {@link By.js}. */
-export type LocatorFunction = (driver: ScriptExecutor) => Promise<unknown>
+/** A custom locator: receives the search context and yields an element, a list of elements, or a promise of either. */
+export type LocatorFunction = (context: SearchContext) => unknown
 
 /** A serialised locator: `{using: value}`, or `{using, value}` in wire form. */
 export type LocatorDefinition = Record<string, unknown>
@@ -200,7 +200,10 @@ export class By {
    * @return A new JavaScript-based locator function.
    */
   static js(script: ScriptSource, ...var_args: unknown[]): LocatorFunction {
-    return function (driver: ScriptExecutor): Promise<unknown> {
+    return function (driver: SearchContext): Promise<unknown> {
+      if (!('executeScript' in driver)) {
+        throw new TypeError('By.js locators can only be evaluated against a WebDriver')
+      }
       return driver.executeScript.call(driver, script, ...var_args)
     }
   }

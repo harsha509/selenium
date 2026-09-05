@@ -46,7 +46,7 @@ class CDPConnection {
     this.sessionId = null
   }
 
-  execute(method: string, params: unknown, callback?: (err?: Error) => void): void {
+  execute(method: string, params?: unknown, callback?: (err?: Error) => void): void {
     const message: CdpMessage = {
       method,
       id: this.cmd_id++,
