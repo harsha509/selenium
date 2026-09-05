@@ -35,6 +35,7 @@ import { Browser, Capabilities } from './lib/capabilities'
 import type { CapabilitiesLike } from './lib/capabilities'
 import * as error from './lib/error'
 import { getBinaryPaths } from './common/driverFinder'
+import * as self from './ie'
 
 const OPTIONS_CAPABILITY_KEY = 'se:ieOptions'
 const SCROLL_BEHAVIOUR = {
@@ -481,3 +482,7 @@ class Driver extends webdriver.WebDriver {
 
 export { Driver, Options, Level, ServiceBuilder, Key }
 export { OPTIONS_CAPABILITY_KEY as VENDOR_COMMAND_PREFIX, SCROLL_BEHAVIOUR as Behavior }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

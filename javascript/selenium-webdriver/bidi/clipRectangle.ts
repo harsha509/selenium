@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './clipRectangle'
+
 /**
  * Represents a clip rectangle.
  * Described in https://w3c.github.io/webdriver-bidi/#command-browsingContext-captureScreenshot.
@@ -120,3 +122,7 @@ export class BoxClipRectangle extends ClipRectangle {
     return map
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

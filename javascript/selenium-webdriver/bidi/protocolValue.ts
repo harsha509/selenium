@@ -17,6 +17,7 @@
 
 import { PrimitiveType, NonPrimitiveType, RemoteType, SpecialNumberType } from './protocolType'
 import { isObject } from '../lib/util'
+import * as self from './protocolValue'
 
 const TYPE_CONSTANT = 'type'
 const VALUE_CONSTANT = 'value'
@@ -453,3 +454,7 @@ export class ChannelValue {
     }
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

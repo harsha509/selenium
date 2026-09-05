@@ -16,6 +16,7 @@
 // under the License.
 
 import { isObject } from './util'
+import * as self from './webelement'
 
 /**
  * @fileoverview Defines some common methods used for WebElements.
@@ -51,3 +52,7 @@ export function extractId(obj: unknown): string {
   }
   throw new TypeError('object is not a WebElement ID')
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

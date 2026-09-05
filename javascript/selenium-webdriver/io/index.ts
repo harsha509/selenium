@@ -18,6 +18,7 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as tmp from 'tmp'
+import * as self from './index'
 
 /** A node-style callback; `value` is present whenever `err` is null. */
 type NodeCallback<T> = (err: unknown, value?: T) => void
@@ -335,3 +336,7 @@ export function walkDir(rootPath: string): Promise<WalkEntry[]> {
     )
   })(rootPath).then(() => seen)
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

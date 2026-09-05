@@ -18,6 +18,7 @@
 import * as path from 'node:path'
 import * as cp from 'node:child_process'
 import * as logging from '../lib/logging'
+import * as self from './util'
 
 /**
  * returns path to java or 'java' string if JAVA_HOME does not exist in env obj
@@ -73,3 +74,7 @@ export function formatSpawnArgs(seleniumStandalonePath: string, args: string[]):
 
   return formattedArgs
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

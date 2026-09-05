@@ -80,6 +80,7 @@ import * as Symbols from './lib/symbols'
 import * as webdriver from './lib/webdriver'
 import * as remote from './remote/index'
 import { getBinaryPaths } from './common/driverFinder'
+import * as self from './chromium'
 
 /**
  * Custom command names supported by Chromium WebDriver.
@@ -887,3 +888,7 @@ export class Driver extends webdriver.WebDriver {
     return this.execute<void>(new command.Command(Command.STOP_CASTING).setParameter('sinkName', deviceName))
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

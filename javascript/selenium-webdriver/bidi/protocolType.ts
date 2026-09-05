@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './protocolType'
+
 /** Case-insensitive lookup of a type constant's value by name. */
 function findByName(this: Record<string, unknown>, name: string): string | null {
   return (
@@ -89,3 +91,7 @@ export const SpecialNumberType = {
 } as const
 
 export type SpecialNumberType = (typeof SpecialNumberType)[keyof typeof SpecialNumberType]
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

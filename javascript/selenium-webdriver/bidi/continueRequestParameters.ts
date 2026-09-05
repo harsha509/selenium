@@ -16,6 +16,7 @@
 // under the License.
 
 import { BytesValue, Header } from './networkTypes'
+import * as self from './continueRequestParameters'
 
 /**
  * Represents the parameters for a continue request command.
@@ -110,3 +111,7 @@ export class ContinueRequestParameters {
     return this.#map
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

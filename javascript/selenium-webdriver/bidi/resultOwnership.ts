@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './resultOwnership'
+
 /**
  * Enum representing the ownership types.
  */
@@ -24,3 +26,7 @@ export const ResultOwnership = {
 } as const
 
 export type ResultOwnership = (typeof ResultOwnership)[keyof typeof ResultOwnership]
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

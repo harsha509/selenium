@@ -16,6 +16,7 @@
 // under the License.
 
 import { register } from './registry'
+import * as self from './enum'
 
 export interface EnumEntry<T extends string> {
   readonly kind: 'enum'
@@ -40,3 +41,7 @@ export function defineEnum<T extends string>(name: string, values: readonly T[])
   register(name, entry)
   return entry
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

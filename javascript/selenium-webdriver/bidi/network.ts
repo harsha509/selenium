@@ -30,6 +30,7 @@ import { AddInterceptParameters } from './addInterceptParameters'
 import { ContinueResponseParameters } from './continueResponseParameters'
 import { ContinueRequestParameters } from './continueRequestParameters'
 import { ProvideResponseParameters } from './provideResponseParameters'
+import * as self from './network'
 
 /** The subset of a WebDriver needed to reach its BiDi connection. */
 interface BidiDriver {
@@ -446,3 +447,7 @@ async function getNetworkInstance(driver: BidiDriver, browsingContextIds: string
 }
 
 export { getNetworkInstance as Network }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

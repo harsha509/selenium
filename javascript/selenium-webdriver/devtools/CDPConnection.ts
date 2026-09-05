@@ -17,6 +17,7 @@
 
 import WebSocket from 'ws'
 import * as logging from '../lib/logging'
+import * as self from './CDPConnection'
 
 const RESPONSE_TIMEOUT = 1000 * 30
 
@@ -98,3 +99,7 @@ class CDPConnection {
 }
 
 export { CDPConnection as CdpConnection }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

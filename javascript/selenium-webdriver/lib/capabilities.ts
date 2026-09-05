@@ -21,6 +21,7 @@
  */
 
 import * as Symbols from './symbols'
+import * as self from './capabilities'
 
 /**
  * Recognized browser names.
@@ -536,3 +537,7 @@ function serialize(caps: Capabilities): Record<string, unknown> {
   }
   return ret
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

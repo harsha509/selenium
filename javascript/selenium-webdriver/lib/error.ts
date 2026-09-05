@@ -16,6 +16,7 @@
 // under the License.
 
 import { isObject } from './util'
+import * as self from './error'
 
 /**
  * The base WebDriver error type. This error type is only used directly when a
@@ -432,3 +433,7 @@ export function checkLegacyResponse<T>(responseObj: T): T {
   }
   return responseObj
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

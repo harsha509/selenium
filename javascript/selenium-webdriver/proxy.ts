@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './proxy'
+
 /**
  * @fileoverview Proxy module alias.
  *
@@ -28,3 +30,7 @@
  */
 
 export * from './lib/proxy'
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

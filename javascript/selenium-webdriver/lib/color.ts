@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './color'
+
 /**
  * @fileoverview Color parsing and formatting utilities mirroring Selenium's Java Color.
  */
@@ -352,3 +354,7 @@ export const Colors: Record<string, Color> = {
   yellow: new Color(255, 255, 0, 1),
   yellowgreen: new Color(154, 205, 50, 1),
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

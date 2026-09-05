@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './realmInfo'
+
 /** Case-insensitive lookup of a realm type's value by name. */
 function findByName(this: Record<string, unknown>, name: string): string | null {
   return (
@@ -132,3 +134,7 @@ export class WindowRealmInfo extends RealmInfo {
     this.sandbox = sandbox
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

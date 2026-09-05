@@ -21,6 +21,7 @@
  */
 
 import { isObject, isPromise } from './util'
+import * as self from './promise'
 
 /** A node-style callback; `value` is present whenever `error` is null. */
 export type NodeCallback<T> = (error: unknown, value?: T) => void
@@ -263,3 +264,7 @@ async function fullyResolveKeys(obj: object): Promise<object> {
 // PUBLIC API
 
 export { checkedNodeCall, delayed, filter, thenFinally as finally, fullyResolved, isPromise, map }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

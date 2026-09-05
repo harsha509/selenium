@@ -17,6 +17,7 @@
 
 import { register, resolve } from './registry'
 import { ValidationError } from './record'
+import * as self from './union'
 
 /** One arm of a discriminated union: `data[by] === value` selects `ref`. */
 export interface DiscriminatedVariant {
@@ -145,3 +146,7 @@ export function defineUnion<T>(name: string, selector: UnionSelector, options: U
   // The runtime union is untyped; T is the caller's declared variant shape, as in Closure's @template.
   return union as unknown as UnionClass<T>
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

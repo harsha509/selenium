@@ -17,6 +17,7 @@
 
 import { By, Locator } from './by'
 import { UnsupportedOperationError } from './error'
+import * as self from './select'
 
 /** The subset of a WebElement that {@link Select} drives. */
 export interface SelectElement {
@@ -468,3 +469,7 @@ function getLongestSubstringWithoutSpace(text: string): string {
   }
   return longestString
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

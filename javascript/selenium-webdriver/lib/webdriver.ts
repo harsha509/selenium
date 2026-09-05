@@ -46,6 +46,7 @@ import Script from './script'
 import Network from './network'
 import Dialog from './fedcm/dialog'
 import type { Session } from './session'
+import * as self from './webdriver'
 
 const cdpTargets = ['page', 'browser']
 
@@ -3420,3 +3421,7 @@ export class AlertPromise extends Alert implements PromiseLike<Alert> {
     }
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

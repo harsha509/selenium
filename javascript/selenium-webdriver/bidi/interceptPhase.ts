@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './interceptPhase'
+
 /**
  * Represents the different phases of intercepting network requests and responses.
  */
@@ -25,3 +27,7 @@ export const InterceptPhase = {
 } as const
 
 export type InterceptPhase = (typeof InterceptPhase)[keyof typeof InterceptPhase]
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

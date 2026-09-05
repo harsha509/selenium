@@ -16,6 +16,7 @@
 // under the License.
 
 import { Source, SourceJson } from './scriptTypes'
+import * as self from './logEntries'
 
 /**
  * Represents a base log entry.
@@ -159,3 +160,7 @@ export class JavascriptLogEntry extends GenericLogEntry {
     super(level, source, text, timeStamp, type, stackTrace)
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

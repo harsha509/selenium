@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './clientWindowInfo'
+
 export const WindowState = Object.freeze({
   FULLSCREEN: 'fullscreen',
   MAXIMIZED: 'maximized',
@@ -71,3 +73,7 @@ export class ClientWindowInfo {
     })
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

@@ -16,6 +16,7 @@
 // under the License.
 
 import { BytesValue, SameSiteValue } from './networkTypes'
+import * as self from './partialCookie'
 
 /**
  * Represents a partial cookie used to set cookies.
@@ -103,3 +104,7 @@ export class PartialCookie {
     return this.#map
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

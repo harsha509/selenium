@@ -45,6 +45,7 @@ import type { CapabilitiesLike } from '../lib/capabilities'
 import type { BinaryPaths } from '../common/seleniumManager'
 import { Builder } from '../index'
 import { getBinaryPaths } from '../common/driverFinder'
+import * as self from './index'
 
 /** Test-runner globals (mocha or jasmine) this module relies on at runtime. */
 declare function describe(title: string, fn: () => void): void
@@ -605,3 +606,7 @@ function locate(fileLike: string): string {
 // PUBLIC API
 
 export { Environment, init, ignore, suite }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

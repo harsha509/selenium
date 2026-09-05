@@ -22,6 +22,7 @@
 import { Executor, HttpClient, Request as HttpRequest, Response } from './index'
 import { Command, Name as CommandName } from '../lib/command'
 import * as error from '../lib/error'
+import * as self from './util'
 
 /**
  * Queries a WebDriver server for its current status.
@@ -153,3 +154,7 @@ export function waitForUrl(url: string, timeout: number, opt_cancelToken?: Promi
     }
   })
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

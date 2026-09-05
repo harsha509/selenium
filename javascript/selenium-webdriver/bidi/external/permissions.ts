@@ -17,6 +17,7 @@
 
 import type BiDi from '../index'
 import type { Capabilities } from '../../lib/capabilities'
+import * as self from './permissions'
 
 export const PermissionState = Object.freeze({
   GRANTED: 'granted',
@@ -97,3 +98,7 @@ export async function getPermissionInstance(driver: PermissionDriver): Promise<P
   await instance.init()
   return instance
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

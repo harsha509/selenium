@@ -43,6 +43,7 @@ import * as by from './by'
 import * as error from './error'
 import * as webdriver from './webdriver'
 import type { Alert, WebDriver, WebElement } from './webdriver'
+import * as self from './until'
 
 const Condition = webdriver.Condition
 const WebElementCondition = webdriver.WebElementCondition
@@ -404,3 +405,7 @@ export function elementTextMatches(element: WebElement, regex: RegExp): WebEleme
     return element.getText().then((t) => (regex.test(t) ? element : null))
   })
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './browsingContextTypes'
+
 /**
  * Represents information about a browsing context.
  * Described in https://w3c.github.io/webdriver-bidi/#type-browsingContext-Info
@@ -109,3 +111,7 @@ export class UserPromptClosed {
     this.userText = userText
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

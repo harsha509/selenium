@@ -46,6 +46,7 @@ import BrowsingContext from './bidi/browsingContext'
 import BrowsingContextInspector from './bidi/browsingContextInspector'
 import ScriptManager from './bidi/scriptManager'
 import NetworkInspector from './bidi/networkInspector'
+import * as self from './index'
 
 const version: string = createRequire(__filename)('./package.json').version
 
@@ -777,3 +778,7 @@ export const Select = select.Select
 export const Color = color.Color
 export const Colors = color.Colors
 export { LogInspector, BrowsingContext, BrowsingContextInspector, ScriptManager, NetworkInspector }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

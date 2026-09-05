@@ -22,6 +22,7 @@
 import { Command, Name } from './command'
 import { InvalidArgumentError } from './error'
 import { WebDriver, WebElement } from './webdriver'
+import * as self from './input'
 
 /**
  * Enumeration of the buttons used in the advanced interactions API.
@@ -1046,3 +1047,7 @@ function computeOffset(el) {
   return [x - bbox.left, y - bbox.top];
 }
 return computeOffset(arguments[0]);`
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport
