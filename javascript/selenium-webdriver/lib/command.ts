@@ -19,61 +19,58 @@
  * @fileoverview Contains several classes for handling commands.
  */
 
-'use strict'
-
 /**
  * Describes a command to execute.
  * @final
  */
-class Command {
-  /** @param {string} name The name of this command. */
-  constructor(name) {
-    /** @private {string} */
-    this.name_ = name
+export class Command {
+  private readonly name_: string
+  private parameters_: Record<string, unknown> = {}
 
-    /** @private {!Object<*>} */
-    this.parameters_ = {}
+  /** @param name The name of this command. */
+  constructor(name: string) {
+    this.name_ = name
   }
 
-  /** @return {string} This command's name. */
-  getName() {
+  /** @return This command's name. */
+  getName(): string {
     return this.name_
   }
 
   /**
    * Sets a parameter to send with this command.
-   * @param {string} name The parameter name.
-   * @param {*} value The parameter value.
-   * @return {!Command} A self reference.
+   * @param name The parameter name.
+   * @param value The parameter value.
+   * @return A self reference.
    */
-  setParameter(name, value) {
+  setParameter(name: string, value: unknown): this {
     this.parameters_[name] = value
     return this
   }
 
   /**
    * Sets the parameters for this command.
-   * @param {!Object<*>} parameters The command parameters.
-   * @return {!Command} A self reference.
+   * @param parameters The command parameters.
+   * @return A self reference.
    */
-  setParameters(parameters) {
+  setParameters(parameters: Record<string, unknown>): this {
     this.parameters_ = parameters
     return this
   }
 
   /**
    * Returns a named command parameter.
-   * @param {string} key The parameter key to look up.
-   * @return {*} The parameter value, or undefined if it has not been set.
+   * @param key The parameter key to look up.
+   * @return The parameter value, or undefined if it has not been set.
    */
-  getParameter(key) {
+  getParameter(key: string): unknown {
     return this.parameters_[key]
   }
 
   /**
-   * @return {!Object<*>} The parameters to send with this command.
+   * @return The parameters to send with this command.
    */
-  getParameters() {
+  getParameters(): Record<string, unknown> {
     return this.parameters_
   }
 }
@@ -81,9 +78,8 @@ class Command {
 /**
  * Enumeration of predefined names command names that all command processors
  * will support.
- * @enum {string}
  */
-const Name = {
+export const Name = {
   GET_SERVER_STATUS: 'getStatus',
 
   NEW_SESSION: 'newSession',
@@ -198,30 +194,23 @@ const Name = {
   SET_DELAY_ENABLED: 'setDelayEnabled',
   RESET_COOLDOWN: 'resetCooldown',
   CLICK_DIALOG_BUTTON: 'clickdialogbutton',
-}
+} as const
+
+/** A predefined command name from {@link Name}. */
+export type Name = (typeof Name)[keyof typeof Name]
 
 /**
  * Handles the execution of WebDriver {@link Command commands}.
- * @record
  */
-class Executor {
+export abstract class Executor {
   /**
    * Executes the given {@code command}. If there is an error executing the
    * command, the provided callback will be invoked with the offending error.
    * Otherwise, the callback will be invoked with a null Error and non-null
    * response object.
    *
-   * @param {!Command} command The command to execute.
-   * @return {!Promise<?>} A promise that will be fulfilled with the command
-   *     result.
+   * @param command The command to execute.
+   * @return A promise that will be fulfilled with the command result.
    */
-  execute(command) {} // eslint-disable-line
-}
-
-// PUBLIC API
-
-module.exports = {
-  Command,
-  Name,
-  Executor,
+  abstract execute(command: Command): Promise<unknown>
 }

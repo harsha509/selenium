@@ -15,33 +15,60 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * Protocol for virtual authenticators
- * @enum {string}
  */
-const Protocol = {
+export const Protocol = {
   CTAP2: 'ctap2',
   U2F: 'ctap1/u2f',
-}
+} as const
+
+export type Protocol = (typeof Protocol)[keyof typeof Protocol]
 
 /**
  * AuthenticatorTransport values
- * @enum {string}
  */
-const Transport = {
+export const Transport = {
   BLE: 'ble',
   USB: 'usb',
   NFC: 'nfc',
   INTERNAL: 'internal',
+} as const
+
+export type Transport = (typeof Transport)[keyof typeof Transport]
+
+/** Wire form of {@link VirtualAuthenticatorOptions}. */
+export interface VirtualAuthenticatorOptionsDict {
+  protocol: Protocol
+  transport: Transport
+  hasResidentKey: boolean
+  hasUserVerification: boolean
+  isUserConsenting: boolean
+  isUserVerified: boolean
+}
+
+/** Wire form of a {@link Credential}; binary fields are base64url encoded. */
+export interface CredentialDict {
+  credentialId: string
+  isResidentCredential: boolean
+  rpId: string
+  privateKey: string
+  signCount: number
+  userHandle?: string
 }
 
 /**
  * Options for the creation of virtual authenticators.
  * @see http://w3c.github.io/webauthn/#sctn-automation
  */
-class VirtualAuthenticatorOptions {
+export class VirtualAuthenticatorOptions {
+  private _protocol: Protocol
+  private _transport: Transport
+  private _hasResidentKey: boolean
+  private _hasUserVerification: boolean
+  private _isUserConsenting: boolean
+  private _isUserVerified: boolean
+
   /**
    * Constructor to initialise VirtualAuthenticatorOptions object.
    */
@@ -54,55 +81,55 @@ class VirtualAuthenticatorOptions {
     this._isUserVerified = false
   }
 
-  getProtocol() {
+  getProtocol(): Protocol {
     return this._protocol
   }
 
-  setProtocol(protocol) {
+  setProtocol(protocol: Protocol): void {
     this._protocol = protocol
   }
 
-  getTransport() {
+  getTransport(): Transport {
     return this._transport
   }
 
-  setTransport(transport) {
+  setTransport(transport: Transport): void {
     this._transport = transport
   }
 
-  getHasResidentKey() {
+  getHasResidentKey(): boolean {
     return this._hasResidentKey
   }
 
-  setHasResidentKey(value) {
+  setHasResidentKey(value: boolean): void {
     this._hasResidentKey = value
   }
 
-  getHasUserVerification() {
+  getHasUserVerification(): boolean {
     return this._hasUserVerification
   }
 
-  setHasUserVerification(value) {
+  setHasUserVerification(value: boolean): void {
     this._hasUserVerification = value
   }
 
-  getIsUserConsenting() {
+  getIsUserConsenting(): boolean {
     return this._isUserConsenting
   }
 
-  setIsUserConsenting(value) {
+  setIsUserConsenting(value: boolean): void {
     this._isUserConsenting = value
   }
 
-  getIsUserVerified() {
+  getIsUserVerified(): boolean {
     return this._isUserVerified
   }
 
-  setIsUserVerified(value) {
+  setIsUserVerified(value: boolean): void {
     this._isUserVerified = value
   }
 
-  toDict() {
+  toDict(): VirtualAuthenticatorOptionsDict {
     return {
       protocol: this.getProtocol(),
       transport: this.getTransport(),
@@ -115,11 +142,26 @@ class VirtualAuthenticatorOptions {
 }
 
 /**
- * A credential stored in a virtual authenticator.
+ * A credential stored in a virtual authenticator. Constructing with no
+ * arguments yields an empty instance for use with {@link Credential#fromDict}.
  * @see https://w3c.github.io/webauthn/#credential-parameters
  */
-class Credential {
-  constructor(credentialId, isResidentCredential, rpId, userHandle, privateKey, signCount) {
+export class Credential {
+  private _id: Uint8Array
+  private _isResidentCredential: boolean
+  private _rpId: string
+  private _userHandle: Uint8Array | null
+  private _privateKey: string
+  private _signCount: number
+
+  constructor(
+    credentialId: Uint8Array = new Uint8Array(),
+    isResidentCredential = false,
+    rpId = '',
+    userHandle: Uint8Array | null = null,
+    privateKey = '',
+    signCount = 0,
+  ) {
     this._id = credentialId
     this._isResidentCredential = isResidentCredential
     this._rpId = rpId
@@ -128,38 +170,44 @@ class Credential {
     this._signCount = signCount
   }
 
-  static createResidentCredential(id, rpId, userHandle, privateKey, signCount) {
+  static createResidentCredential(
+    id: Uint8Array,
+    rpId: string,
+    userHandle: Uint8Array,
+    privateKey: string,
+    signCount: number,
+  ): Credential {
     return new Credential(id, true, rpId, userHandle, privateKey, signCount)
   }
 
-  static createNonResidentCredential(id, rpId, privateKey, signCount) {
+  static createNonResidentCredential(id: Uint8Array, rpId: string, privateKey: string, signCount: number): Credential {
     return new Credential(id, false, rpId, null, privateKey, signCount)
   }
 
-  id() {
+  id(): Uint8Array {
     return this._id
   }
 
-  isResidentCredential() {
+  isResidentCredential(): boolean {
     return this._isResidentCredential
   }
 
-  rpId() {
+  rpId(): string {
     return this._rpId
   }
 
-  userHandle() {
+  userHandle(): Uint8Array | null {
     if (this._userHandle != null) {
       return this._userHandle
     }
     return null
   }
 
-  privateKey() {
+  privateKey(): string {
     return this._privateKey
   }
 
-  signCount() {
+  signCount(): number {
     return this._signCount
   }
 
@@ -173,7 +221,13 @@ class Credential {
    * @deprecated This method has been made static. Call it with class name. Example, Credential.createResidentCredential()
    * @returns A resident credential
    */
-  createResidentCredential(id, rpId, userHandle, privateKey, signCount) {
+  createResidentCredential(
+    id: Uint8Array,
+    rpId: string,
+    userHandle: Uint8Array,
+    privateKey: string,
+    signCount: number,
+  ): Credential {
     return new Credential(id, true, rpId, userHandle, privateKey, signCount)
   }
 
@@ -186,12 +240,12 @@ class Credential {
    * @deprecated This method has been made static. Call it with class name. Example, Credential.createNonResidentCredential()
    * @returns A non-resident credential
    */
-  createNonResidentCredential(id, rpId, privateKey, signCount) {
+  createNonResidentCredential(id: Uint8Array, rpId: string, privateKey: string, signCount: number): Credential {
     return new Credential(id, false, rpId, null, privateKey, signCount)
   }
 
-  toDict() {
-    let credentialData = {
+  toDict(): CredentialDict {
+    const credentialData: CredentialDict = {
       credentialId: Buffer.from(this._id).toString('base64url'),
       isResidentCredential: this._isResidentCredential,
       rpId: this._rpId,
@@ -199,7 +253,7 @@ class Credential {
       signCount: this._signCount,
     }
 
-    if (this.userHandle() != null) {
+    if (this._userHandle != null) {
       credentialData['userHandle'] = Buffer.from(this._userHandle).toString('base64url')
     }
 
@@ -209,28 +263,19 @@ class Credential {
   /**
    * Creates a credential from a map.
    */
-  fromDict(data) {
-    let id = new Uint8Array(Buffer.from(data['credentialId'], 'base64url'))
-    let isResidentCredential = data['isResidentCredential']
-    let rpId = data['rpId']
-    let privateKey = Buffer.from(data['privateKey'], 'base64url').toString('binary')
-    let signCount = data['signCount']
-    let userHandle
+  fromDict(data: CredentialDict): Credential {
+    const id = new Uint8Array(Buffer.from(data['credentialId'], 'base64url'))
+    const isResidentCredential = data['isResidentCredential']
+    const rpId = data['rpId']
+    const privateKey = Buffer.from(data['privateKey'], 'base64url').toString('binary')
+    const signCount = data['signCount']
+    let userHandle: Uint8Array | null
 
-    if ('userHandle' in data) {
+    if ('userHandle' in data && data.userHandle !== undefined) {
       userHandle = new Uint8Array(Buffer.from(data['userHandle'], 'base64url'))
     } else {
       userHandle = null
     }
     return new Credential(id, isResidentCredential, rpId, userHandle, privateKey, signCount)
   }
-}
-
-// PUBLIC API
-
-module.exports = {
-  Credential,
-  VirtualAuthenticatorOptions,
-  Transport,
-  Protocol,
 }

@@ -17,62 +17,52 @@
 
 class Account {
   constructor(
-    accountId,
-    email,
-    name,
-    givenName,
-    pictureUrl,
-    idpConfigUrl,
-    loginState,
-    termsOfServiceUrl,
-    privacyPolicyUrl,
-  ) {
-    this._accountId = accountId
-    this._email = email
-    this._name = name
-    this._givenName = givenName
-    this._pictureUrl = pictureUrl
-    this._idpConfigUrl = idpConfigUrl
-    this._loginState = loginState
-    this._termsOfServiceUrl = termsOfServiceUrl
-    this._privacyPolicyUrl = privacyPolicyUrl
-  }
+    private readonly _accountId: string,
+    private readonly _email: string,
+    private readonly _name: string,
+    private readonly _givenName: string,
+    private readonly _pictureUrl: string,
+    private readonly _idpConfigUrl: string,
+    private readonly _loginState: string,
+    private readonly _termsOfServiceUrl: string,
+    private readonly _privacyPolicyUrl: string,
+  ) {}
 
-  get accountId() {
+  get accountId(): string {
     return this._accountId
   }
 
-  get email() {
+  get email(): string {
     return this._email
   }
 
-  get name() {
+  get name(): string {
     return this._name
   }
 
-  get givenName() {
+  get givenName(): string {
     return this._givenName
   }
 
-  get pictureUrl() {
+  get pictureUrl(): string {
     return this._pictureUrl
   }
 
-  get idpConfigUrl() {
+  get idpConfigUrl(): string {
     return this._idpConfigUrl
   }
 
-  get loginState() {
+  get loginState(): string {
     return this._loginState
   }
 
-  get termsOfServiceUrl() {
+  get termsOfServiceUrl(): string {
     return this._termsOfServiceUrl
   }
 
-  get privacyPolicyUrl() {
+  get privacyPolicyUrl(): string {
     return this._privacyPolicyUrl
   }
 }
 
-module.exports = Account
+export = Account

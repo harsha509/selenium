@@ -15,14 +15,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * Determines whether a {@code value} should be treated as an object.
- * @param {?} value The value to test.
- * @returns {boolean} Whether the value is an object.
+ * @param value The value to test.
+ * @returns Whether the value is an object.
  */
-function isObject(value) {
+export function isObject(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === '[object Object]'
 }
 
@@ -30,21 +28,16 @@ function isObject(value) {
  * Determines whether a {@code value} should be treated as a promise.
  * Any object whose "then" property is a function will be considered a promise.
  *
- * @param {?} value The value to test.
- * @return {boolean} Whether the value is a promise.
+ * @param value The value to test.
+ * @return Whether the value is a promise.
  */
-function isPromise(value) {
+export function isPromise(value: unknown): value is PromiseLike<unknown> {
   try {
-    // Use array notation so the Closure compiler does not obfuscate away our
-    // contract.
-    return (typeof value === 'object' || typeof value === 'function') && typeof value['then'] === 'function'
-    /*eslint no-unused-vars: "off"*/
-  } catch (ex) {
+    if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+      return false
+    }
+    return typeof Reflect.get(value, 'then') === 'function'
+  } catch {
     return false
   }
-}
-
-module.exports = {
-  isObject,
-  isPromise,
 }
