@@ -20,33 +20,45 @@
  * communicates with a remote end using HTTP + JSON.
  */
 
-'use strict'
+import * as http from 'node:http'
+import * as https from 'node:https'
+import { createRequire } from 'node:module'
+import * as url from 'node:url'
 
-const http = require('node:http')
-const https = require('node:https')
-const url = require('node:url')
+import * as httpLib from '../lib/http'
 
-const httpLib = require('../lib/http')
+/** Parsed request target, as produced by the legacy `url.parse`. */
+type RequestOptions = url.UrlWithStringQuery
+
+/** Everything `sendRequest` needs to issue one request. */
+interface SendOptions {
+  agent?: http.Agent | null
+  method?: string
+  auth?: string | null
+  host?: string | null
+  hostname?: string | null
+  port?: string | null
+  protocol?: string | null
+  path?: string | null
+  pathname?: string | null
+  search?: string | null
+  hash?: string | null
+  headers: http.OutgoingHttpHeaders
+}
+
+/** `http.Agent` exposes the keep-alive flag at runtime; the typings omit it. */
+interface KeepAliveAgent extends http.Agent {
+  keepAlive?: boolean
+}
 
 /**
- * @typedef {{protocol: (?string|undefined),
- *            auth: (?string|undefined),
- *            hostname: (?string|undefined),
- *            host: (?string|undefined),
- *            port: (?string|undefined),
- *            path: (?string|undefined),
- *            pathname: (?string|undefined)}}
- */
-let RequestOptions // eslint-disable-line
-
-/**
- * @param {string} aUrl The request URL to parse.
- * @return {RequestOptions} The request options.
+ * @param aUrl The request URL to parse.
+ * @return The request options.
  * @throws {Error} if the URL does not include a hostname.
  */
-function getRequestOptions(aUrl) {
+function getRequestOptions(aUrl: string): RequestOptions {
   // eslint-disable-next-line n/no-deprecated-api
-  let options = url.parse(aUrl)
+  const options = url.parse(aUrl)
   if (!options.hostname) {
     throw new Error('Invalid URL: ' + aUrl)
   }
@@ -58,40 +70,40 @@ function getRequestOptions(aUrl) {
   return options
 }
 
-/** @const {string} */
 const USER_AGENT = (function () {
-  const version = require('../package.json').version
-  const platform = { darwin: 'mac', win32: 'windows' }[process.platform] || 'linux'
+  const version: string = createRequire(__filename)('../package.json').version
+  const platforms: Record<string, string> = { darwin: 'mac', win32: 'windows' }
+  const platform = platforms[process.platform] || 'linux'
   return `selenium/${version} (js ${platform})`
 })()
 
 /**
  * A basic HTTP client used to send messages to a remote end.
- *
- * @implements {httpLib.Client}
  */
-class HttpClient {
+export class HttpClient implements httpLib.Client {
+  private readonly agent_: KeepAliveAgent | null
+  /** Base options for each request. */
+  private readonly options_: RequestOptions
+  /** client options, header overrides */
+  client_options: Record<string, unknown>
+  private readonly proxyOptions_: RequestOptions | null
+
   /**
-   * @param {string} serverUrl URL for the WebDriver server to send commands to.
-   * @param {http.Agent=} opt_agent The agent to use for each request.
+   * @param serverUrl URL for the WebDriver server to send commands to.
+   * @param opt_agent The agent to use for each request.
    *     Defaults to `http.globalAgent`.
-   * @param {?string=} opt_proxy The proxy to use for the connection to the
+   * @param opt_proxy The proxy to use for the connection to the
    *     server. Default is to use no proxy.
-   * @param {?Object.<string,Object>} client_options
+   * @param client_options
    */
-  constructor(serverUrl, opt_agent, opt_proxy, client_options = {}) {
-    /** @private {http.Agent} */
+  constructor(
+    serverUrl: string,
+    opt_agent?: http.Agent | null,
+    opt_proxy?: string | null,
+    client_options: Record<string, unknown> = {},
+  ) {
     this.agent_ = opt_agent || null
-
-    /**
-     * Base options for each request.
-     * @private {RequestOptions}
-     */
     this.options_ = getRequestOptions(serverUrl)
-
-    /**
-     * client options, header overrides
-     */
     this.client_options = client_options
 
     /**
@@ -100,25 +112,24 @@ class HttpClient {
      */
     this.keepAlive = this.client_options['keep-alive']
 
-    /**  @private {?RequestOptions} */
     this.proxyOptions_ = opt_proxy ? getRequestOptions(opt_proxy) : null
   }
 
-  get keepAlive() {
-    return this.agent_.keepAlive
+  get keepAlive(): boolean | undefined {
+    return this.agent_?.keepAlive
   }
 
-  set keepAlive(value) {
-    if (value === 'true' || value === true) {
+  set keepAlive(value: unknown) {
+    if (this.agent_ && (value === 'true' || value === true)) {
       this.agent_.keepAlive = true
     }
   }
 
   /** @override */
-  send(httpRequest) {
-    let data
+  send(httpRequest: httpLib.Request): Promise<httpLib.Response> {
+    let data: string | undefined
 
-    let headers = {}
+    const headers: http.OutgoingHttpHeaders = {}
 
     if (httpRequest.headers) {
       httpRequest.headers.forEach(function (value, name) {
@@ -126,7 +137,8 @@ class HttpClient {
       })
     }
 
-    headers['User-Agent'] = this.client_options['user-agent'] || USER_AGENT
+    const userAgent = this.client_options['user-agent']
+    headers['User-Agent'] = typeof userAgent === 'string' && userAgent ? userAgent : USER_AGENT
     headers['Content-Length'] = 0
     if (httpRequest.method == 'POST' || httpRequest.method == 'PUT') {
       data = JSON.stringify(httpRequest.data)
@@ -134,16 +146,16 @@ class HttpClient {
       headers['Content-Type'] = 'application/json;charset=UTF-8'
     }
 
-    let path = this.options_.path
+    let path = this.options_.path ?? ''
     if (path.endsWith('/') && httpRequest.path.startsWith('/')) {
       path += httpRequest.path.substring(1)
     } else {
       path += httpRequest.path
     }
     // eslint-disable-next-line n/no-deprecated-api
-    let parsedPath = url.parse(path)
+    const parsedPath = url.parse(path)
 
-    let options = {
+    const options: SendOptions = {
       agent: this.agent_ || null,
       method: httpRequest.method,
 
@@ -168,31 +180,37 @@ class HttpClient {
 
 /**
  * Sends a single HTTP request.
- * @param {!Object} options The request options.
- * @param {function(!httpLib.Response)} onOk The function to call if the
- *     request succeeds.
- * @param {function(!Error)} onError The function to call if the request fails.
- * @param {?string=} opt_data The data to send with the request.
- * @param {?RequestOptions=} opt_proxy The proxy server to use for the request.
- * @param {number=} opt_retries The current number of retries.
+ * @param options The request options.
+ * @param onOk The function to call if the request succeeds.
+ * @param onError The function to call if the request fails.
+ * @param opt_data The data to send with the request.
+ * @param opt_proxy The proxy server to use for the request.
+ * @param opt_retries The current number of retries.
  */
-function sendRequest(options, onOk, onError, opt_data, opt_proxy, opt_retries) {
-  var hostname = options.hostname
-  var port = options.port
+function sendRequest(
+  options: SendOptions,
+  onOk: (response: httpLib.Response) => void,
+  onError: (error: Error) => void,
+  opt_data?: string,
+  opt_proxy?: RequestOptions | null,
+  opt_retries?: number,
+): void {
+  const hostname = options.hostname
+  const port = options.port
 
   if (opt_proxy) {
-    let proxy = /** @type {RequestOptions} */ (opt_proxy)
+    const proxy = opt_proxy
 
     // RFC 2616, section 5.1.2:
     // The absoluteURI form is REQUIRED when the request is being made to a
     // proxy.
-    let absoluteUri = url.format(options)
+    const absoluteUri = url.format(options)
 
     // RFC 2616, section 14.23:
     // An HTTP/1.1 proxy MUST ensure that any request message it forwards does
     // contain an appropriate Host header field that identifies the service
     // being requested by the proxy.
-    let targetHost = options.hostname
+    let targetHost = options.hostname ?? ''
     if (options.port) {
       targetHost += ':' + options.port
     }
@@ -213,18 +231,22 @@ function sendRequest(options, onOk, onError, opt_data, opt_proxy, opt_retries) {
     }
   }
 
-  let requestFn = options.protocol === 'https:' ? https.request : http.request
-  var request = requestFn(options, function onResponse(response) {
+  const requestFn = options.protocol === 'https:' ? https.request : http.request
+  const request = requestFn({ ...options, agent: options.agent || undefined }, function onResponse(response) {
     if (response.statusCode == 302 || response.statusCode == 303) {
       let location
       try {
+        const locationHeader = response.headers['location']
+        if (typeof locationHeader !== 'string') {
+          throw new TypeError(`expected a string "Location" header, but got ${typeof locationHeader}`)
+        }
         // eslint-disable-next-line n/no-deprecated-api
-        location = url.parse(response.headers['location'])
+        location = url.parse(locationHeader)
       } catch (ex) {
         onError(
           Error(
             'Failed to parse "Location" header for server redirect: ' +
-              ex.message +
+              (ex instanceof Error ? ex.message : String(ex)) +
               '\nResponse was: \n' +
               new httpLib.Response(response.statusCode, response.headers, ''),
           ),
@@ -233,9 +255,9 @@ function sendRequest(options, onOk, onError, opt_data, opt_proxy, opt_retries) {
       }
 
       if (!location.hostname) {
-        location.hostname = hostname
-        location.port = port
-        location.auth = options.auth
+        location.hostname = hostname ?? null
+        location.port = port ?? null
+        location.auth = options.auth ?? null
       }
 
       request.destroy()
@@ -263,19 +285,19 @@ function sendRequest(options, onOk, onError, opt_data, opt_proxy, opt_retries) {
       return
     }
 
-    const body = []
+    const body: Buffer[] = []
     response.on('data', body.push.bind(body))
     response.on('end', function () {
       const resp = new httpLib.Response(
-        /** @type {number} */ (response.statusCode),
-        /** @type {!Object<string>} */ (response.headers),
+        response.statusCode ?? 0,
+        response.headers,
         Buffer.concat(body).toString('utf8').replace(/\0/g, ''),
       )
       onOk(resp)
     })
   })
 
-  request.on('error', function (e) {
+  request.on('error', function (e: NodeJS.ErrnoException) {
     if (typeof opt_retries === 'undefined') {
       opt_retries = 0
     }
@@ -308,19 +330,17 @@ const MAX_RETRIES = 3
  * ephemeral ports. A more robust solution is bumping the MaxUserPort setting
  * as described here: http://msdn.microsoft.com/en-us/library/aa560610%28v=bts.20%29.aspx
  *
- * @param {!number} retries
- * @param {!Error} err
- * @return {boolean}
+ * @param retries
+ * @param err
  */
-function shouldRetryRequest(retries, err) {
+function shouldRetryRequest(retries: number, err: NodeJS.ErrnoException): boolean {
   return retries < MAX_RETRIES && isRetryableNetworkError(err)
 }
 
 /**
- * @param {!Error} err
- * @return {boolean}
+ * @param err
  */
-function isRetryableNetworkError(err) {
+function isRetryableNetworkError(err: NodeJS.ErrnoException): boolean {
   if (err && err.code) {
     return (
       err.code === 'ECONNABORTED' ||
@@ -337,8 +357,6 @@ function isRetryableNetworkError(err) {
 
 // PUBLIC API
 
-module.exports.Agent = http.Agent
-module.exports.Executor = httpLib.Executor
-module.exports.HttpClient = HttpClient
-module.exports.Request = httpLib.Request
-module.exports.Response = httpLib.Response
+export const Agent = http.Agent
+export type Agent = http.Agent
+export { Executor, Request, Response } from '../lib/http'

@@ -53,6 +53,7 @@ module.exports = [
     ignores: ['node_modules/*', 'bidi/generated/*', 'bidi/generated_src/*'],
     rules: {
       'prettier/prettier': prettierRule,
+      '@typescript-eslint/no-unused-vars': ['error', { varsIgnorePattern: '^_', args: 'all', argsIgnorePattern: '^_' }],
     },
   },
   {

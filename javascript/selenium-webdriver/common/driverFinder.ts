@@ -21,16 +21,17 @@
  *  Utility to find if a given file is present and executable.
  */
 
-const path = require('node:path')
-const { binaryPaths } = require('./seleniumManager')
+import * as path from 'node:path'
+import { binaryPaths, BinaryPaths } from './seleniumManager'
+import { Capabilities } from '../lib/capabilities'
+import { isObject } from '../lib/util'
 
 /**
  * Determines the path of the correct Selenium Manager binary
- * @param {Capabilities} capabilities browser options to fetch the driver
- * @returns {{browserPath: string, driverPath: string}} path of the driver
- * and browser location
+ * @param capabilities browser options to fetch the driver
+ * @returns path of the driver and browser location
  */
-function getBinaryPaths(capabilities) {
+export function getBinaryPaths(capabilities: Capabilities): BinaryPaths {
   try {
     const args = getArgs(capabilities)
     return binaryPaths(args)
@@ -44,34 +45,36 @@ function getBinaryPaths(capabilities) {
   }
 }
 
-function getArgs(options) {
-  let args = ['--browser', options.getBrowserName(), '--language-binding', 'javascript', '--output', 'json']
+function getArgs(options: Capabilities): string[] {
+  const browserName = options.getBrowserName()
+  if (browserName === undefined) {
+    throw new TypeError('browser name is required to locate a driver')
+  }
+  const args = ['--browser', browserName, '--language-binding', 'javascript', '--output', 'json']
 
-  if (options.getBrowserVersion() && options.getBrowserVersion() !== '') {
-    args.push('--browser-version', options.getBrowserVersion())
+  const browserVersion = options.getBrowserVersion()
+  if (browserVersion && browserVersion !== '') {
+    args.push('--browser-version', browserVersion)
   }
 
   const vendorOptions =
     options.get('goog:chromeOptions') || options.get('ms:edgeOptions') || options.get('moz:firefoxOptions')
-  if (vendorOptions && vendorOptions.binary && vendorOptions.binary !== '') {
+  if (isObject(vendorOptions) && typeof vendorOptions.binary === 'string' && vendorOptions.binary !== '') {
     args.push('--browser-path', path.resolve(vendorOptions.binary))
   }
 
   const proxyOptions = options.getProxy()
 
   // Check if proxyOptions exists and has properties
-  if (proxyOptions && Object.keys(proxyOptions).length > 0) {
+  if (isObject(proxyOptions) && Object.keys(proxyOptions).length > 0) {
     const httpProxy = proxyOptions['httpProxy']
     const sslProxy = proxyOptions['sslProxy']
 
-    if (httpProxy !== undefined) {
+    if (typeof httpProxy === 'string') {
       args.push('--proxy', httpProxy)
-    } else if (sslProxy !== undefined) {
+    } else if (typeof sslProxy === 'string') {
       args.push('--proxy', sslProxy)
     }
   }
   return args
 }
-
-// PUBLIC API
-module.exports = { getBinaryPaths }

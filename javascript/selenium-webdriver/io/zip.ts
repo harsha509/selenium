@@ -15,37 +15,36 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
-const jszip = require('jszip')
-const path = require('node:path')
-const fs = require('node:fs/promises')
-const io = require('./index')
-const { InvalidArgumentError } = require('../lib/error')
+import JSZip from 'jszip'
+import * as path from 'node:path'
+import * as fs from 'node:fs/promises'
+import * as io from './index'
+import { InvalidArgumentError } from '../lib/error'
 
 /**
  * Manages a zip archive.
  */
-class Zip {
-  constructor() {
-    /** @private @const */
-    this.z_ = new jszip()
+export class Zip {
+  /** The underlying archive; read by {@link load} and {@link unzip}. */
+  readonly z_: JSZip
+  private readonly pendingAdds_: Set<Promise<unknown>>
 
-    /** @private @const {!Set<!Promise<?>>} */
+  constructor() {
+    this.z_ = new JSZip()
     this.pendingAdds_ = new Set()
   }
 
   /**
    * Adds a file to this zip.
    *
-   * @param {string} filePath path to the file to add.
-   * @param {string=} zipPath path to the file in the zip archive, defaults
+   * @param filePath path to the file to add.
+   * @param zipPath path to the file in the zip archive, defaults
    *     to the basename of `filePath`.
-   * @return {!Promise<?>} a promise that will resolve when added.
+   * @return a promise that will resolve when added.
    */
-  addFile(filePath, zipPath = path.basename(filePath)) {
-    let add = Promise.all([io.read(filePath), fs.stat(filePath)]).then(([buffer, stats]) =>
-      this.z_.file(/** @type {string} */ (zipPath.replace(/\\/g, '/')), buffer, {
+  addFile(filePath: string, zipPath: string = path.basename(filePath)): Promise<boolean> {
+    const add = Promise.all([io.read(filePath), fs.stat(filePath)]).then(([buffer, stats]) =>
+      this.z_.file(zipPath.replace(/\\/g, '/'), buffer, {
         date: stats.mtime, // preserve file's "last modified" value
       }),
     )
@@ -62,20 +61,19 @@ class Zip {
   /**
    * Recursively adds a directory and all of its contents to this archive.
    *
-   * @param {string} dirPath path to the directory to add.
-   * @param {string=} zipPath path to the folder in the archive to add the
+   * @param dirPath path to the directory to add.
+   * @param zipPath path to the folder in the archive to add the
    *     directory contents to. Defaults to the root folder.
-   * @return {!Promise<?>} returns a promise that will resolve when
-   * the operation is complete.
+   * @return returns a promise that will resolve when the operation is complete.
    */
-  addDir(dirPath, zipPath = '') {
+  addDir(dirPath: string, zipPath = ''): Promise<boolean[]> {
     return io.walkDir(dirPath).then((entries) => {
       let archive = this.z_
       if (zipPath) {
-        archive = archive.folder(zipPath)
+        archive = archive.folder(zipPath) ?? archive
       }
 
-      let files = []
+      const files: Promise<boolean>[] = []
       entries.forEach((spec) => {
         if (spec.dir) {
           archive.folder(spec.path)
@@ -89,11 +87,10 @@ class Zip {
   }
 
   /**
-   * @param {string} path File path to test for within the archive.
-   * @return {boolean} Whether this zip archive contains an entry with the given
-   *     path.
+   * @param path File path to test for within the archive.
+   * @return Whether this zip archive contains an entry with the given path.
    */
-  has(path) {
+  has(path: string): boolean {
     return this.z_.file(path) !== null
   }
 
@@ -103,12 +100,12 @@ class Zip {
    * if either `path` does not exist within the archive, or if `path` refers
    * to a directory.
    *
-   * @param {string} path the path to the file whose contents to return.
-   * @return {!Promise<!Buffer>} a promise that will be resolved with the file's
-   *     contents as a buffer.
+   * @param path the path to the file whose contents to return.
+   * @return a promise that will be resolved with the file's contents as a
+   *     buffer.
    */
-  getFile(path) {
-    let file = this.z_.file(path)
+  getFile(path: string): Promise<Buffer> {
+    const file = this.z_.file(path)
     if (!file) {
       return Promise.reject(new InvalidArgumentError(`No such file in zip archive: ${path}`))
     }
@@ -125,12 +122,11 @@ class Zip {
    * not wait for any outstanding {@link #addFile add}
    * {@link #addDir operations} before encoding the archive._
    *
-   * @param {string} compression The desired compression.
+   * @param compression The desired compression.
    *     Must be `STORE` (the default) or `DEFLATE`.
-   * @return {!Promise<!Buffer>} a promise that will resolve with this archive
-   *     as a buffer.
+   * @return a promise that will resolve with this archive as a buffer.
    */
-  toBuffer(compression = 'STORE') {
+  toBuffer(compression: 'STORE' | 'DEFLATE' = 'STORE'): Promise<Buffer> {
     if (compression !== 'STORE' && compression !== 'DEFLATE') {
       return Promise.reject(new InvalidArgumentError(`compression must be one of {STORE, DEFLATE}, got ${compression}`))
     }
@@ -141,13 +137,12 @@ class Zip {
 /**
  * Asynchronously opens a zip archive.
  *
- * @param {string} path to the zip archive to load.
- * @return {!Promise<!Zip>} a promise that will resolve with the opened
- *     archive.
+ * @param path to the zip archive to load.
+ * @return a promise that will resolve with the opened archive.
  */
-function load(path) {
+export function load(path: string): Promise<Zip> {
   return io.read(path).then((data) => {
-    let zip = new Zip()
+    const zip = new Zip()
     return zip.z_.loadAsync(data).then(() => zip)
   })
 }
@@ -155,22 +150,22 @@ function load(path) {
 /**
  * Asynchronously unzips an archive file.
  *
- * @param {string} src path to the source file to unzip.
- * @param {string} dst path to the destination directory.
- * @return {!Promise<string>} a promise that will resolve with `dst` once the
- *     archive has been unzipped.
+ * @param src path to the source file to unzip.
+ * @param dst path to the destination directory.
+ * @return a promise that will resolve with `dst` once the archive has been
+ *     unzipped.
  */
-function unzip(src, dst) {
+export function unzip(src: string, dst: string): Promise<string> {
   return load(src).then((zip) => {
-    const promisedDirs = new Map()
-    const promises = []
+    const promisedDirs = new Map<string, Promise<string>>()
+    const promises: Promise<unknown>[] = []
 
     zip.z_.forEach((relPath, file) => {
       let p
       if (file.dir) {
         p = createDir(relPath)
       } else {
-        let dirname = path.dirname(relPath)
+        const dirname = path.dirname(relPath)
         if (dirname === '.') {
           p = writeFile(relPath, file)
         } else {
@@ -182,7 +177,7 @@ function unzip(src, dst) {
 
     return Promise.all(promises).then(() => dst)
 
-    function createDir(dir) {
+    function createDir(dir: string): Promise<string> {
       let p = promisedDirs.get(dir)
       if (!p) {
         p = io.mkdirp(path.join(dst, dir))
@@ -191,11 +186,8 @@ function unzip(src, dst) {
       return p
     }
 
-    function writeFile(relPath, file) {
+    function writeFile(relPath: string, file: JSZip.JSZipObject): Promise<void> {
       return file.async('nodebuffer').then((buffer) => io.write(path.join(dst, relPath), buffer))
     }
   })
 }
-
-// PUBLIC API
-module.exports = { Zip, load, unzip }

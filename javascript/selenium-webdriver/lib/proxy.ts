@@ -25,12 +25,8 @@
  *     capabilities.setProxy(proxy.manual({http: 'host:1234'});
  */
 
-'use strict'
-
 /**
  * Supported {@linkplain Config proxy configuration} types.
- *
- * @enum {string}
  */
 const Type = {
   AUTODETECT: 'autodetect',
@@ -38,92 +34,61 @@ const Type = {
   MANUAL: 'manual',
   PAC: 'pac',
   SYSTEM: 'system',
-}
+} as const
+
+export type ProxyType = (typeof Type)[keyof typeof Type]
 
 /**
  * Describes how a proxy should be configured for a WebDriver session.
- * @record
  */
-function Config() {}
-
-/**
- * The proxy type.
- * @type {Type}
- */
-Config.prototype.proxyType
+export interface Config {
+  /** The proxy type. */
+  proxyType: ProxyType
+}
 
 /**
  * Describes how to configure a PAC proxy.
- * @record
- * @extends {Config}
  */
-function PacConfig() {}
-
-/**
- * URL for the PAC file to use.
- *
- * @type {string}
- */
-PacConfig.prototype.proxyAutoconfigUrl
+export interface PacConfig extends Config {
+  /** URL for the PAC file to use. */
+  proxyAutoconfigUrl: string
+}
 
 /**
  * Record object that defines a manual proxy configuration. Manual
  * configurations can be easily created using either the
  * {@link ./proxy.manual proxy.manual()} or {@link ./proxy.socks proxy.socks()}
  * factory method.
- *
- * @record
- * @extends {Config}
  */
-function ManualConfig() {}
+export interface ManualConfig extends Config {
+  /** The proxy host for HTTP requests. */
+  httpProxy?: string
 
-/**
- * The proxy host for HTTP requests.
- *
- * @type {(string|undefined)}
- */
-ManualConfig.prototype.httpProxy
+  /** An array of hosts which should bypass all proxies. */
+  noProxy?: string[]
 
-/**
- * An array of hosts which should bypass all proxies.
- *
- * @type {(Array<string>|undefined)}
- */
-ManualConfig.prototype.noProxy
+  /** The proxy host for HTTPS requests. */
+  sslProxy?: string
 
-/**
- * The proxy host for HTTPS requests.
- *
- * @type {(string|undefined)}
- */
-ManualConfig.prototype.sslProxy
+  /** Defines the host and port for the SOCKS proxy to use. */
+  socksProxy?: string
 
-/**
- * Defines the host and port for the SOCKS proxy to use.
- *
- * @type {(number|undefined)}
- */
-ManualConfig.prototype.socksProxy
+  /** Defines the SOCKS proxy version. Must be a number in the range [0, 255]. */
+  socksVersion?: number
+}
 
-/**
- * Defines the SOCKS proxy version. Must be a number in the range [0, 255].
- *
- * @type {(number|undefined)}
- */
-ManualConfig.prototype.socksVersion
-
-// PUBLIC API
-
-/** @const */ exports.Config = Config
-/** @const */ exports.ManualConfig = ManualConfig
-/** @const */ exports.PacConfig = PacConfig
-/** @const */ exports.Type = Type
+/** Options accepted by {@link manual}. */
+export interface ManualOptions {
+  http?: string
+  https?: string
+  bypass?: string[]
+}
 
 /**
  * Configures WebDriver to bypass all browser proxies.
- * @return {!Config} A new proxy configuration object.
+ * @return A new proxy configuration object.
  */
-function direct() {
+export function direct(): Config {
   return { proxyType: Type.DIRECT }
 }
 
@@ -140,13 +105,10 @@ function direct() {
  * Behavior is undefined for HTTP and HTTPS requests if the
  * corresponding key is omitted from the configuration options.
  *
- * @param {{http: (string|undefined),
- *          https: (string|undefined),
- *          bypass: (Array<string>|undefined)}} options Proxy
- *     configuration options.
- * @return {!ManualConfig} A new proxy configuration object.
+ * @param options Proxy configuration options.
+ * @return A new proxy configuration object.
  */
-function manual({ http, https, bypass }) {
+export function manual({ http, https, bypass }: ManualOptions): ManualConfig {
   return {
     proxyType: Type.MANUAL,
     httpProxy: http,
@@ -170,43 +132,33 @@ function manual({ http, https, bypass }) {
  *     capabilities.setProxy(proxy.socks('bob:password@localhost:1234'));
  *
  *
- * @param {string} socksProxy The proxy host, in the form `hostname:port`.
- * @param {number=} socksVersion The SOCKS proxy version.
- * @return {!ManualConfig} A new proxy configuration object.
+ * @param socksProxy The proxy host, in the form `hostname:port`.
+ * @param socksVersion The SOCKS proxy version.
+ * @return A new proxy configuration object.
  * @see https://en.wikipedia.org/wiki/SOCKS
  */
-function socks(socksProxy, socksVersion = undefined) {
-  return /** @type {!Config} */ ({
+export function socks(socksProxy: string, socksVersion: number | undefined = undefined): ManualConfig {
+  return {
     proxyType: Type.MANUAL,
     socksProxy,
     socksVersion,
-  })
+  }
 }
 
 /**
  * Configures WebDriver to configure the browser proxy using the PAC file at
  * the given URL.
- * @param {string} proxyAutoconfigUrl URL for the PAC proxy to use.
- * @return {!PacConfig} A new proxy configuration object.
+ * @param proxyAutoconfigUrl URL for the PAC proxy to use.
+ * @return A new proxy configuration object.
  */
-function pac(proxyAutoconfigUrl) {
+export function pac(proxyAutoconfigUrl: string): PacConfig {
   return { proxyType: Type.PAC, proxyAutoconfigUrl }
 }
 
 /**
  * Configures WebDriver to use the current system's proxy.
- * @return {!Config} A new proxy configuration object.
+ * @return A new proxy configuration object.
  */
-function system() {
+export function system(): Config {
   return { proxyType: Type.SYSTEM }
-}
-
-// PUBLIC API
-
-module.exports = {
-  system,
-  pac,
-  socks,
-  manual,
-  direct,
 }

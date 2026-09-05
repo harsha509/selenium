@@ -23,38 +23,40 @@
  * the {@link Executor} to send commands to the remote end.
  */
 
-'use strict'
-
-const path = require('node:path')
-const cmd = require('./command')
-const error = require('./error')
-const logging = require('./logging')
-const promise = require('./promise')
-const { Session } = require('./session')
-const webElement = require('./webelement')
-const { isObject } = require('./util')
+import * as path from 'node:path'
+import * as cmd from './command'
+import * as error from './error'
+import * as logging from './logging'
+import * as promise from './promise'
+import { Session } from './session'
+import * as webElement from './webelement'
+import { isObject } from './util'
 
 const log_ = logging.getLogger(`${logging.Type.DRIVER}.http`)
+
+/** A browser atom: a function whose source is shipped to the remote end. */
+type AtomFunction = (...args: never[]) => unknown
 
 const getAttribute = requireAtom('get-attribute.js', '//javascript/selenium-webdriver/lib/atoms:get-attribute.js')
 const isDisplayed = requireAtom('is-displayed.js', '//javascript/selenium-webdriver/lib/atoms:is-displayed.js')
 const findElements = requireAtom('find-elements.js', '//javascript/selenium-webdriver/lib/atoms:find-elements.js')
 
 /**
- * @param {string} module
- * @param {string} bazelTarget
- * @return {!Function}
+ * Loads a generated atom module by name; falls back to bazel-bin in dev mode.
+ * @param module
+ * @param bazelTarget
  */
-function requireAtom(module, bazelTarget) {
+function requireAtom(module: string, bazelTarget: string): AtomFunction {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- atoms are generated at build time
     return require('./atoms/' + module)
   } catch (ex) {
     try {
       const file = bazelTarget.slice(2).replace(':', '/')
-      log_.log(`../../../bazel-bin/${file}`)
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- atoms are generated at build time
       return require(path.resolve(`../../../bazel-bin/${file}`))
     } catch (ex2) {
-      log_.severe(ex2)
+      log_.severe(String(ex2))
       throw new Error(
         `Failed to import atoms module ${module}. If running in dev mode, you` +
           ` need to run \`bazel build ${bazelTarget}\` from the project` +
@@ -65,13 +67,16 @@ function requireAtom(module, bazelTarget) {
   }
 }
 
+/** Header values as node reports them: single, repeated, or absent. */
+export type HeaderValue = string | string[] | undefined
+
 /**
  * Converts a headers map to a HTTP header block string.
- * @param {!Map<string, string>} headers The map to convert.
- * @return {string} The headers as a string.
+ * @param headers The map to convert.
+ * @return The headers as a string.
  */
-function headersToString(headers) {
-  const ret = []
+function headersToString(headers: Map<string, HeaderValue>): string {
+  const ret: string[] = []
   headers.forEach(function (value, name) {
     ret.push(`${name.toLowerCase()}: ${value}`)
   })
@@ -84,21 +89,26 @@ function headersToString(headers) {
  * responsibility to build the full URL for the final request.
  * @final
  */
-class Request {
+export class Request {
+  method: string
+  path: string
+  data: object | undefined
+  headers: Map<string, string>
+
   /**
-   * @param {string} method The HTTP method to use for the request.
-   * @param {string} path The path on the server to send the request to.
-   * @param {Object=} opt_data This request's non-serialized JSON payload data.
+   * @param method The HTTP method to use for the request.
+   * @param path The path on the server to send the request to.
+   * @param opt_data This request's non-serialized JSON payload data.
    */
-  constructor(method, path, opt_data) {
-    this.method = /** string */ method
-    this.path = /** string */ path
-    this.data = /** Object */ opt_data
-    this.headers = /** !Map<string, string> */ new Map([['Accept', 'application/json; charset=utf-8']])
+  constructor(method: string, path: string, opt_data?: object) {
+    this.method = method
+    this.path = path
+    this.data = opt_data
+    this.headers = new Map([['Accept', 'application/json; charset=utf-8']])
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     let ret = `${this.method} ${this.path} HTTP/1.1\n`
     ret += headersToString(this.headers) + '\n\n'
     if (this.data) {
@@ -112,24 +122,28 @@ class Request {
  * Represents a HTTP response message.
  * @final
  */
-class Response {
+export class Response {
+  status: number
+  body: string
+  headers: Map<string, HeaderValue>
+
   /**
-   * @param {number} status The response code.
-   * @param {!Object<string>} headers The response headers. All header names
+   * @param status The response code.
+   * @param headers The response headers. All header names
    *     will be converted to lowercase strings for consistent lookups.
-   * @param {string} body The response body.
+   * @param body The response body.
    */
-  constructor(status, headers, body) {
-    this.status = /** number */ status
-    this.body = /** string */ body
-    this.headers = /** !Map<string, string>*/ new Map()
-    for (let header in headers) {
+  constructor(status: number, headers: Record<string, HeaderValue>, body: string) {
+    this.status = status
+    this.body = body
+    this.headers = new Map()
+    for (const header in headers) {
       this.headers.set(header.toLowerCase(), headers[header])
     }
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     let ret = `HTTP/1.1 ${this.status}\n${headersToString(this.headers)}\n\n`
     if (this.body) {
       ret += this.body
@@ -138,44 +152,51 @@ class Response {
   }
 }
 
-/** @enum {!Function} */
 const Atom = {
   GET_ATTRIBUTE: getAttribute,
   IS_DISPLAYED: isDisplayed,
   FIND_ELEMENTS: findElements,
 }
 
-function post(path) {
+/** An HTTP method and resource path for a WebDriver command. */
+export interface CommandSpec {
+  method: string
+  path: string
+}
+
+/** Rewrites a command into another command before it is sent. */
+export type CommandTransformer = (command: cmd.Command) => cmd.Command
+
+function post(path: string): CommandSpec {
   return resource('POST', path)
 }
 
-function del(path) {
+function del(path: string): CommandSpec {
   return resource('DELETE', path)
 }
 
-function get(path) {
+function get(path: string): CommandSpec {
   return resource('GET', path)
 }
 
-function resource(method, path) {
+function resource(method: string, path: string): CommandSpec {
   return { method: method, path: path }
 }
-
-/** @typedef {{method: string, path: string}} */
-var CommandSpec
-
-/** @typedef {function(!cmd.Command): !cmd.Command} */
-var CommandTransformer
 
 class InternalTypeError extends TypeError {}
 
 /**
- * @param {!cmd.Command} command The initial command.
- * @param {Atom} atom The name of the atom to execute.
+ * @param command The initial command.
+ * @param atom The name of the atom to execute.
  * @param params
- * @return {!Command} The transformed command to execute.
+ * @return The transformed command to execute.
  */
-function toExecuteAtomCommand(command, atom, name, ...params) {
+function toExecuteAtomCommand(
+  command: cmd.Command,
+  atom: AtomFunction,
+  name: string,
+  ...params: string[]
+): cmd.Command {
   if (typeof atom !== 'function') {
     throw new InternalTypeError('atom is not a function: ' + typeof atom)
   }
@@ -189,8 +210,7 @@ function toExecuteAtomCommand(command, atom, name, ...params) {
     )
 }
 
-/** @const {!Map<string, (CommandSpec|CommandTransformer)>} */
-const W3C_COMMAND_MAP = new Map([
+const W3C_COMMAND_MAP = new Map<string, CommandSpec | CommandTransformer>([
   // Session management.
   [cmd.Name.NEW_SESSION, post('/session')],
   [cmd.Name.QUIT, del('/session/:sessionId')],
@@ -337,32 +357,30 @@ const W3C_COMMAND_MAP = new Map([
 
 /**
  * Handles sending HTTP messages to a remote end.
- *
- * @interface
  */
-class Client {
+export class Client {
   /**
    * Sends a request to the server. The client will automatically follow any
    * redirects returned by the server, fulfilling the returned promise with the
    * final response.
    *
-   * @param {!Request} httpRequest The request to send.
-   * @return {!Promise<Response>} A promise that will be fulfilled with the
-   *     server's response.
+   * @param httpRequest The request to send.
+   * @return A promise that will be fulfilled with the server's response.
    */
-  send(httpRequest) {}
+  send(_httpRequest: Request): Promise<Response> {
+    return Promise.reject(new Error('Client#send() is not implemented'))
+  }
 }
 
 /**
- * @param {Map<string, CommandSpec>} customCommands
- *     A map of custom command definitions.
- * @param {!cmd.Command} command The command to resolve.
- * @return {!Request} A promise that will resolve with the
- *     command to execute.
+ * @param customCommands A map of custom command definitions.
+ * @param command The command to resolve.
+ * @return A promise that will resolve with the command to execute.
  */
-function buildRequest(customCommands, command) {
+function buildRequest(customCommands: Map<string, CommandSpec> | null, command: cmd.Command): Request {
   log_.finest(() => `Translating command: ${command.getName()}`)
-  let spec = customCommands && customCommands.get(command.getName())
+  let spec: CommandSpec | CommandTransformer | null | undefined =
+    customCommands && customCommands.get(command.getName())
   if (spec) {
     return toHttpRequest(spec)
   }
@@ -370,7 +388,7 @@ function buildRequest(customCommands, command) {
   spec = W3C_COMMAND_MAP.get(command.getName())
   if (typeof spec === 'function') {
     log_.finest(() => `Transforming command for W3C: ${command.getName()}`)
-    let newCommand = spec(command)
+    const newCommand = spec(command)
     return buildRequest(customCommands, newCommand)
   } else if (spec) {
     return toHttpRequest(spec)
@@ -378,18 +396,15 @@ function buildRequest(customCommands, command) {
   throw new error.UnknownCommandError('Unrecognized command: ' + command.getName())
 
   /**
-   * @param {CommandSpec} resource
-   * @return {!Request}
+   * @param resource
    */
-  function toHttpRequest(resource) {
+  function toHttpRequest(resource: CommandSpec): Request {
     log_.finest(() => `Building HTTP request: ${JSON.stringify(resource)}`)
-    let parameters = command.getParameters()
-    let path = buildPath(resource.path, parameters)
+    const parameters = command.getParameters()
+    const path = buildPath(resource.path, parameters)
     return new Request(resource.method, path, parameters)
   }
 }
-
-const CLIENTS = /** !WeakMap<!Executor, !(Client|IThenable<!Client>)> */ new WeakMap()
 
 /**
  * A command executor that communicates with the server using JSON over HTTP.
@@ -401,22 +416,22 @@ const CLIENTS = /** !WeakMap<!Executor, !(Client|IThenable<!Client>)> */ new Wea
  *
  * [json]: https://github.com/SeleniumHQ/selenium/wiki/JsonWireProtocol
  * [w3c]: https://w3c.github.io/webdriver/webdriver-spec.html
- *
- * @implements {cmd.Executor}
  */
-class Executor {
+export class Executor extends cmd.Executor {
+  #client: Client | PromiseLike<Client>
+  private customCommands_: Map<string, CommandSpec> | null
+  private readonly log_: logging.Logger
+  /** Set once a new-session response reveals a W3C-compliant remote end. */
+  declare w3c?: boolean
+
   /**
-   * @param {!(Client|IThenable<!Client>)} client The client to use for sending
-   *     requests to the server, or a promise-like object that will resolve
-   *     to the client.
+   * @param client The client to use for sending requests to the server, or a
+   *     promise-like object that will resolve to the client.
    */
-  constructor(client) {
-    CLIENTS.set(this, client)
-
-    /** @private {Map<string, CommandSpec>} */
+  constructor(client: Client | PromiseLike<Client>) {
+    super()
+    this.#client = client
     this.customCommands_ = null
-
-    /** @private {!logging.Logger} */
     this.log_ = logging.getLogger(`${logging.Type.DRIVER}.http.Executor`)
   }
 
@@ -427,13 +442,13 @@ class Executor {
    * same name. For example, given "/person/:name" and the parameters
    * "{name: 'Bob'}", the final command path will be "/person/Bob".
    *
-   * @param {string} name The command name.
-   * @param {string} method The HTTP method to use when sending this command.
-   * @param {string} path The path to send the command to, relative to
+   * @param name The command name.
+   * @param method The HTTP method to use when sending this command.
+   * @param path The path to send the command to, relative to
    *     the WebDriver server's command root and of the form
    *     "/path/:variable/segment".
    */
-  defineCommand(name, method, path) {
+  defineCommand(name: string, method: string, path: string): void {
     if (!this.customCommands_) {
       this.customCommands_ = new Map()
     }
@@ -441,25 +456,23 @@ class Executor {
   }
 
   /** @override */
-  async execute(command) {
-    let request = buildRequest(this.customCommands_, command)
+  async execute(command: cmd.Command): Promise<unknown> {
+    const request = buildRequest(this.customCommands_, command)
     this.log_.finer(() => `>>> ${request.method} ${request.path}`)
 
-    let client = CLIENTS.get(this)
+    let client = this.#client
     if (promise.isPromise(client)) {
       client = await client
-      CLIENTS.set(this, client)
+      this.#client = client
     }
 
-    let response = await client.send(request)
+    const response = await client.send(request)
     this.log_.finer(() => `>>>\n${request}\n<<<\n${response}`)
 
-    let httpResponse = /** @type {!Response} */ (response)
-
-    let { isW3C, value } = parseHttpResponse(command, httpResponse)
+    const { isW3C, value } = parseHttpResponse(command, response)
 
     if (command.getName() === cmd.Name.NEW_SESSION) {
-      if (!value || !value.sessionId) {
+      if (!isObject(value) || typeof value.sessionId !== 'string' || !value.sessionId) {
         throw new error.WebDriverError(`Unable to parse new session response: ${response.body}`)
       }
 
@@ -470,8 +483,8 @@ class Executor {
       }
 
       // No implementations use the `capabilities` key yet...
-      let capabilities = value.capabilities || value.value
-      return new Session(/** @type {{sessionId: string}} */ (value).sessionId, capabilities)
+      const capabilities = value.capabilities || value.value
+      return new Session(value.sessionId, isObject(capabilities) ? capabilities : {})
     }
 
     return typeof value === 'undefined' ? null : value
@@ -479,14 +492,13 @@ class Executor {
 }
 
 /**
- * @param {string} str .
- * @return {?} .
+ * @param str .
+ * @return .
  */
-function tryParse(str) {
+function tryParse(str: string): unknown {
   try {
     return JSON.parse(str)
-    /*eslint no-unused-vars: "off"*/
-  } catch (ignored) {
+  } catch {
     // Do nothing.
   }
 }
@@ -495,25 +507,25 @@ function tryParse(str) {
  * Callback used to parse {@link Response} objects from a
  * {@link HttpClient}.
  *
- * @param {!cmd.Command} command The command the response is for.
- * @param {!Response} httpResponse The HTTP response to parse.
- * @return {{isW3C: boolean, value: ?}} An object describing the parsed
- *     response. This object will have two fields: `isW3C` indicates whether
- *     the response looks like it came from a remote end that conforms with the
- *     W3C WebDriver spec, and `value`, the actual response value.
+ * @param command The command the response is for.
+ * @param httpResponse The HTTP response to parse.
+ * @return An object describing the parsed response. This object will have two
+ *     fields: `isW3C` indicates whether the response looks like it came from a
+ *     remote end that conforms with the W3C WebDriver spec, and `value`, the
+ *     actual response value.
  * @throws {WebDriverError} If the HTTP response is an error.
  */
-function parseHttpResponse(command, httpResponse) {
+function parseHttpResponse(command: cmd.Command, httpResponse: Response): { isW3C: boolean; value: unknown } {
   if (httpResponse.status < 200) {
     // This should never happen, but throw the raw response so users report it.
     throw new error.WebDriverError(`Unexpected HTTP response:\n${httpResponse}`)
   }
 
-  let parsed = tryParse(httpResponse.body)
+  const parsed = tryParse(httpResponse.body)
 
   if (parsed && typeof parsed === 'object') {
-    let value = parsed.value
-    let isW3C = isObject(value) && typeof parsed.status === 'undefined'
+    let value: unknown = Reflect.get(parsed, 'value')
+    const isW3C = isObject(value) && typeof Reflect.get(parsed, 'status') === 'undefined'
 
     if (!isW3C) {
       error.checkLegacyResponse(parsed)
@@ -534,7 +546,7 @@ function parseHttpResponse(command, httpResponse) {
     return { isW3C: false, value: parsed }
   }
 
-  let value = httpResponse.body.replace(/\r\n/g, '\n')
+  const value = httpResponse.body.replace(/\r\n/g, '\n')
 
   // 404 represents an unknown command; anything else > 399 is a generic unknown
   // error.
@@ -552,15 +564,15 @@ function parseHttpResponse(command, httpResponse) {
  * path segment prefixed with ':' will be replaced by the value of the
  * corresponding parameter. All parameters spliced into the path will be
  * removed from the parameter map.
- * @param {string} path The original resource path.
- * @param {!Object<*>} parameters The parameters object to splice into the path.
- * @return {string} The modified path.
+ * @param path The original resource path.
+ * @param parameters The parameters object to splice into the path.
+ * @return The modified path.
  */
-function buildPath(path, parameters) {
-  let pathParameters = path.match(/\/:(\w+)\b/g)
+export function buildPath(path: string, parameters: Record<string, unknown>): string {
+  const pathParameters = path.match(/\/:(\w+)\b/g)
   if (pathParameters) {
     for (let i = 0; i < pathParameters.length; ++i) {
-      let key = pathParameters[i].substring(2) // Trim the /:
+      const key = pathParameters[i].substring(2) // Trim the /:
       if (key in parameters) {
         let value = parameters[key]
         if (webElement.isId(value)) {
@@ -568,7 +580,7 @@ function buildPath(path, parameters) {
           // not the full JSON.
           value = webElement.extractId(value)
         }
-        path = path.replace(pathParameters[i], '/' + value)
+        path = path.replace(pathParameters[i], '/' + String(value))
         delete parameters[key]
       } else {
         throw new error.InvalidArgumentError('Missing required parameter: ' + key)
@@ -576,15 +588,4 @@ function buildPath(path, parameters) {
     }
   }
   return path
-}
-
-// PUBLIC API
-
-module.exports = {
-  Executor,
-  Client,
-  Request,
-  Response,
-  // Exported for testing.
-  buildPath,
 }

@@ -15,20 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * @fileoverview Color parsing and formatting utilities mirroring Selenium's Java Color.
  */
 
-class Color {
+export class Color {
+  private red_: number
+  private green_: number
+  private blue_: number
+  private alpha_: number
+
   /**
-   * @param {number} red
-   * @param {number} green
-   * @param {number} blue
-   * @param {number} alpha
+   * @param red
+   * @param green
+   * @param blue
+   * @param alpha
    */
-  constructor(red, green, blue, alpha = 1) {
+  constructor(red: number, green: number, blue: number, alpha = 1) {
     this.red_ = Color.#clamp255(red)
     this.green_ = Color.#clamp255(green)
     this.blue_ = Color.#clamp255(blue)
@@ -37,10 +40,9 @@ class Color {
 
   /**
    * Guesses the input color format and returns a Color instance.
-   * @param {string} value
-   * @returns {Color}
+   * @param value
    */
-  static fromString(value) {
+  static fromString(value: string): Color {
     const v = String(value)
     for (const conv of [
       Color.#fromRgb,
@@ -61,23 +63,23 @@ class Color {
 
   /**
    * Sets opacity (alpha channel).
-   * @param {number} alpha
+   * @param alpha
    */
-  setOpacity(alpha) {
+  setOpacity(alpha: number): void {
     this.alpha_ = Color.#clamp01(alpha)
   }
 
   /**
-   * @returns {string} e.g. "rgb(255, 0, 0)"
+   * @returns e.g. "rgb(255, 0, 0)"
    */
-  asRgb() {
+  asRgb(): string {
     return `rgb(${this.red_}, ${this.green_}, ${this.blue_})`
   }
 
   /**
-   * @returns {string} e.g. "rgba(255, 0, 0, 1)"
+   * @returns e.g. "rgba(255, 0, 0, 1)"
    */
-  asRgba() {
+  asRgba(): string {
     let a
     if (this.alpha_ === 1) {
       a = '1'
@@ -90,78 +92,77 @@ class Color {
   }
 
   /**
-   * @returns {string} e.g. "#ff0000"
+   * @returns e.g. "#ff0000"
    */
-  asHex() {
-    const toHex = (n) => n.toString(16).padStart(2, '0')
+  asHex(): string {
+    const toHex = (n: number) => n.toString(16).padStart(2, '0')
     return `#${toHex(this.red_)}${toHex(this.green_)}${toHex(this.blue_)}`
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     return `Color: ${this.asRgba()}`
   }
 
   /**
-   * @param {*} other
-   * @returns {boolean}
+   * @param other
    */
-  equals(other) {
+  equals(other: unknown): boolean {
     return other instanceof Color && this.asRgba() === other.asRgba()
   }
 
   // Converters
-  static #fromRgb(v) {
+  static #fromRgb(v: string): Color | null {
     const m = /^\s*rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)\s*$/i.exec(v)
     return m ? new Color(+m[1], +m[2], +m[3], 1) : null
   }
 
-  static #fromRgbPct(v) {
+  static #fromRgbPct(v: string): Color | null {
     const m =
       /^\s*rgb\(\s*(\d{1,3}|\d{1,2}\.\d+)%\s*,\s*(\d{1,3}|\d{1,2}\.\d+)%\s*,\s*(\d{1,3}|\d{1,2}\.\d+)%\s*\)\s*$/i.exec(
         v,
       )
     if (!m) return null
-    const pct = (i) => Math.floor((Math.min(100, Math.max(0, parseFloat(m[i]))) / 100) * 255)
+    const pct = (i: number) => Math.floor((Math.min(100, Math.max(0, parseFloat(m[i]))) / 100) * 255)
     return new Color(pct(1), pct(2), pct(3), 1)
   }
 
-  static #fromRgba(v) {
+  static #fromRgba(v: string): Color | null {
     const m = /^\s*rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0|1|0\.\d+)\s*\)\s*$/i.exec(v)
     return m ? new Color(+m[1], +m[2], +m[3], parseFloat(m[4])) : null
   }
 
-  static #fromRgbaPct(v) {
+  static #fromRgbaPct(v: string): Color | null {
     const m =
       /^\s*rgba\(\s*(\d{1,3}|\d{1,2}\.\d+)%\s*,\s*(\d{1,3}|\d{1,2}\.\d+)%\s*,\s*(\d{1,3}|\d{1,2}\.\d+)%\s*,\s*(0|1|0\.\d+)\s*\)\s*$/i.exec(
         v,
       )
     if (!m) return null
-    const pct = (i) => Math.floor((Math.min(100, Math.max(0, parseFloat(m[i]))) / 100) * 255)
+    const pct = (i: number) => Math.floor((Math.min(100, Math.max(0, parseFloat(m[i]))) / 100) * 255)
     return new Color(pct(1), pct(2), pct(3), parseFloat(m[4]))
   }
 
-  static #fromHex6(v) {
+  static #fromHex6(v: string): Color | null {
     const m = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(v)
     return m ? new Color(parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16), 1) : null
   }
 
-  static #fromHex3(v) {
+  static #fromHex3(v: string): Color | null {
     const m = /^#([\da-f])([\da-f])([\da-f])$/i.exec(v)
     return m ? new Color(parseInt(m[1] + m[1], 16), parseInt(m[2] + m[2], 16), parseInt(m[3] + m[3], 16), 1) : null
   }
 
-  static #fromHsl(v) {
+  static #fromHsl(v: string): Color | null {
     const m = /^\s*hsl\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*\)\s*$/i.exec(v)
     return m ? Color.#hslToColor(+m[1], +m[2] / 100, +m[3] / 100, 1) : null
   }
 
-  static #fromHsla(v) {
+  static #fromHsla(v: string): Color | null {
     const m = /^\s*hsla\(\s*(\d{1,3})\s*,\s*(\d{1,3})%\s*,\s*(\d{1,3})%\s*,\s*(0|1|0\.\d+)\s*\)\s*$/i.exec(v)
     return m ? Color.#hslToColor(+m[1], +m[2] / 100, +m[3] / 100, parseFloat(m[4])) : null
   }
 
-  static #hslToColor(hDeg, s, l, a) {
+  static #hslToColor(hDeg: number, s: number, l: number, a: number): Color {
     const h = (((hDeg % 360) + 360) % 360) / 360
     if (s === 0) {
       const v = Math.round(l * 255)
@@ -169,7 +170,7 @@ class Color {
     }
     const luminocity2 = l < 0.5 ? l * (1 + s) : l + s - l * s
     const luminocity1 = 2 * l - luminocity2
-    const hueToRgb = (l1, l2, hue) => {
+    const hueToRgb = (l1: number, l2: number, hue: number): number => {
       if (hue < 0) hue += 1
       if (hue > 1) hue -= 1
       if (hue < 1 / 6) return l1 + (l2 - l1) * 6 * hue
@@ -183,24 +184,24 @@ class Color {
     return new Color(r, g, b, a)
   }
 
-  static #fromNamed(v) {
+  static #fromNamed(v: string): Color | null {
     const name = String(v).trim().toLowerCase()
     const c = Colors[name]
     return c ? new Color(c.red_, c.green_, c.blue_, c.alpha_) : null
   }
 
-  static #clamp255(n) {
+  static #clamp255(n: number): number {
     return Math.max(0, Math.min(255, Math.round(n)))
   }
 
-  static #clamp01(n) {
+  static #clamp01(n: number): number {
     return Math.max(0, Math.min(1, n))
   }
 }
 
 // Basic colour keywords as defined by the W3C HTML/CSS spec.
 // Keys are lowercase to match typical CSS usage.
-const Colors = {
+export const Colors: Record<string, Color> = {
   transparent: new Color(0, 0, 0, 0),
   aliceblue: new Color(240, 248, 255, 1),
   antiquewhite: new Color(250, 235, 215, 1),
@@ -350,9 +351,4 @@ const Colors = {
   whitesmoke: new Color(245, 245, 245, 1),
   yellow: new Color(255, 255, 0, 1),
   yellowgreen: new Color(154, 205, 50, 1),
-}
-
-module.exports = {
-  Color,
-  Colors,
 }

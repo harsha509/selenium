@@ -21,30 +21,52 @@
  *  Wrapper for getting information from the Selenium Manager binaries
  */
 
-const { platform, arch } = require('node:process')
-const path = require('node:path')
-const fs = require('node:fs')
-const spawnSync = require('node:child_process').spawnSync
-const logging = require('../lib/logging')
+import { platform, arch } from 'node:process'
+import * as path from 'node:path'
+import * as fs from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import * as logging from '../lib/logging'
+
+/** One log line in Selenium Manager's JSON output. */
+interface SeleniumManagerLog {
+  level: string
+  message: string
+}
+
+/** Selenium Manager's `--output json` payload. */
+interface SeleniumManagerOutput {
+  logs?: SeleniumManagerLog[]
+  result: {
+    message?: string
+    driver_path: string
+    browser_path: string
+  }
+}
+
+/** Resolved driver and browser locations. */
+export interface BinaryPaths {
+  browserPath: string
+  driverPath: string
+}
 
 const log_ = logging.getLogger(logging.Type.DRIVER)
 let debugMessagePrinted = false
 
 /**
  * Determines the path of the correct Selenium Manager binary
- * @returns {string}
  */
-function getBinary() {
-  const directory = {
+function getBinary(): string {
+  const directories: Record<string, string> = {
     darwin: 'macos',
     win32: 'windows',
     cygwin: 'windows',
     linux: arch === 'arm64' ? 'linux-arm64' : 'linux-x86_64',
-  }[platform]
+  }
+  const directory = directories[platform]
 
   const file = directory === 'windows' ? 'selenium-manager.exe' : 'selenium-manager'
 
-  let seleniumManagerBasePath = path.join(__dirname, '..', '/bin')
+  const seleniumManagerBasePath = path.join(__dirname, '..', '/bin')
 
   const filePath = process.env.SE_MANAGER_PATH || path.join(seleniumManagerBasePath, directory, file)
 
@@ -62,15 +84,13 @@ function getBinary() {
 
 /**
  * Determines the path of the correct driver
- * @param {string[]} args arguments to invoke Selenium Manager
- * @returns {{browserPath: string, driverPath: string}} path of the driver and
- * browser location
+ * @param args arguments to invoke Selenium Manager
+ * @returns path of the driver and browser location
  */
-
-function binaryPaths(args) {
+export function binaryPaths(args: string[]): BinaryPaths {
   const smBinary = getBinary()
   const spawnResult = spawnSync(smBinary, args)
-  let output
+  let output: SeleniumManagerOutput
   if (spawnResult.status) {
     let errorMessage
     if (spawnResult.stderr.toString()) {
@@ -82,7 +102,7 @@ function binaryPaths(args) {
         logOutput(output)
         errorMessage = output.result.message
       } catch (e) {
-        errorMessage = e.toString()
+        errorMessage = String(e)
       }
     }
     throw new Error(`Error executing command for ${smBinary} with ${args}: ${errorMessage}`)
@@ -90,7 +110,7 @@ function binaryPaths(args) {
   try {
     output = JSON.parse(spawnResult.stdout.toString())
   } catch (e) {
-    throw new Error(`Error executing command for ${smBinary} with ${args}: ${e.toString()}`, { cause: e })
+    throw new Error(`Error executing command for ${smBinary} with ${args}: ${String(e)}`, { cause: e })
   }
 
   logOutput(output)
@@ -100,16 +120,13 @@ function binaryPaths(args) {
   }
 }
 
-function logOutput(output) {
-  for (const key in output.logs) {
-    if (output.logs[key].level === 'WARN') {
-      log_.warning(`${output.logs[key].message}`)
+function logOutput(output: SeleniumManagerOutput): void {
+  for (const log of output.logs ?? []) {
+    if (log.level === 'WARN') {
+      log_.warning(`${log.message}`)
     }
-    if (['DEBUG', 'INFO'].includes(output.logs[key].level)) {
-      log_.debug(`${output.logs[key].message}`)
+    if (['DEBUG', 'INFO'].includes(log.level)) {
+      log_.debug(`${log.message}`)
     }
   }
 }
-
-// PUBLIC API
-module.exports = { binaryPaths }

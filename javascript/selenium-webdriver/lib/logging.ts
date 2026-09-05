@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-'use strict'
-
 /**
  * @fileoverview Defines WebDriver's logging system. The logging system is
  * broken into major components: local and remote logging.
@@ -64,99 +62,96 @@
  * [W3C WebDriver spec](http://www.w3.org/TR/webdriver/).
  */
 
+/** A message, or a function producing one, accepted by {@link Logger#log}. */
+export type Loggable = string | (() => string)
+
+/** A function that receives each {@link Entry} recorded on a logger. */
+export type Handler = (entry: Entry) => void
+
 /**
  * Defines a message level that may be used to control logging output.
  *
  * @final
  */
-class Level {
+export class Level {
+  private readonly name_: string
+  private readonly value_: number
+
   /**
-   * @param {string} name the level's name.
-   * @param {number} level the level's numeric value.
+   * @param name the level's name.
+   * @param level the level's numeric value.
    */
-  constructor(name, level) {
+  constructor(name: string, level: number) {
     if (level < 0) {
       throw new TypeError('Level must be >= 0')
     }
 
-    /** @private {string} */
     this.name_ = name
-
-    /** @private {number} */
     this.value_ = level
   }
 
   /** This logger's name. */
-  get name() {
+  get name(): string {
     return this.name_
   }
 
   /** The numeric log level. */
-  get value() {
+  get value(): number {
     return this.value_
   }
 
   /** @override */
-  toString() {
+  toString(): string {
     return this.name
   }
+
+  /**
+   * Indicates no log messages should be recorded.
+   */
+  static readonly OFF = new Level('OFF', Infinity)
+
+  /**
+   * Log messages with a level of `1000` or higher.
+   */
+  static readonly SEVERE = new Level('SEVERE', 1000)
+
+  /**
+   * Log messages with a level of `900` or higher.
+   */
+  static readonly WARNING = new Level('WARNING', 900)
+
+  /**
+   * Log messages with a level of `800` or higher.
+   */
+  static readonly INFO = new Level('INFO', 800)
+
+  /**
+   * Log messages with a level of `700` or higher.
+   */
+  static readonly DEBUG = new Level('DEBUG', 700)
+
+  /**
+   * Log messages with a level of `500` or higher.
+   */
+  static readonly FINE = new Level('FINE', 500)
+
+  /**
+   * Log messages with a level of `400` or higher.
+   */
+  static readonly FINER = new Level('FINER', 400)
+
+  /**
+   * Log messages with a level of `300` or higher.
+   */
+  static readonly FINEST = new Level('FINEST', 300)
+
+  /**
+   * Indicates all log messages should be recorded.
+   */
+  static readonly ALL = new Level('ALL', 0)
 }
 
-/**
- * Indicates no log messages should be recorded.
- * @const
- */
-Level.OFF = new Level('OFF', Infinity)
-
-/**
- * Log messages with a level of `1000` or higher.
- * @const
- */
-Level.SEVERE = new Level('SEVERE', 1000)
-
-/**
- * Log messages with a level of `900` or higher.
- * @const
- */
-Level.WARNING = new Level('WARNING', 900)
-
-/**
- * Log messages with a level of `800` or higher.
- * @const
- */
-Level.INFO = new Level('INFO', 800)
-
-/**
- * Log messages with a level of `700` or higher.
- * @const
- */
-Level.DEBUG = new Level('DEBUG', 700)
-
-/**
- * Log messages with a level of `500` or higher.
- * @const
- */
-Level.FINE = new Level('FINE', 500)
-
-/**
- * Log messages with a level of `400` or higher.
- * @const
- */
-Level.FINER = new Level('FINER', 400)
-
-/**
- * Log messages with a level of `300` or higher.
- * @const
- */
-Level.FINEST = new Level('FINEST', 300)
-
-/**
- * Indicates all log messages should be recorded.
- * @const
- */
-Level.ALL = new Level('ALL', 0)
-
-const ALL_LEVELS = /** !Set<Level> */ new Set([
+const ALL_LEVELS = new Set<Level>([
   Level.OFF,
   Level.SEVERE,
   Level.WARNING,
@@ -168,7 +163,7 @@ const ALL_LEVELS = /** !Set<Level> */ new Set([
   Level.ALL,
 ])
 
-const LEVELS_BY_NAME = /** !Map<string, !Level> */ new Map([
+const LEVELS_BY_NAME = new Map<string, Level>([
   [Level.OFF.name, Level.OFF],
   [Level.SEVERE.name, Level.SEVERE],
   [Level.WARNING.name, Level.WARNING],
@@ -184,18 +179,17 @@ const LEVELS_BY_NAME = /** !Map<string, !Level> */ new Map([
  * Converts a level name or value to a {@link Level} value. If the name/value
  * is not recognized, {@link Level.ALL} will be returned.
  *
- * @param {(number|string)} nameOrValue The log level name, or value, to
- *     convert.
- * @return {!Level} The converted level.
+ * @param nameOrValue The log level name, or value, to convert.
+ * @return The converted level.
  */
-function getLevel(nameOrValue) {
+export function getLevel(nameOrValue: number | string): Level {
   if (typeof nameOrValue === 'string') {
     return LEVELS_BY_NAME.get(nameOrValue) || Level.ALL
   }
   if (typeof nameOrValue !== 'number') {
     throw new TypeError('not a string or number')
   }
-  for (let level of ALL_LEVELS) {
+  for (const level of ALL_LEVELS) {
     if (nameOrValue >= level.value) {
       return level
     }
@@ -208,16 +202,21 @@ function getLevel(nameOrValue) {
  *
  * @final
  */
-class Entry {
+export class Entry {
+  level: Level
+  message: string
+  timestamp: number
+  type: string
+
   /**
-   * @param {(!Level|string|number)} level The entry level.
-   * @param {string} message The log message.
-   * @param {number=} opt_timestamp The time this entry was generated, in
+   * @param level The entry level.
+   * @param message The log message.
+   * @param opt_timestamp The time this entry was generated, in
    *     milliseconds since 0:00:00, January 1, 1970 UTC. If omitted, the
    *     current time will be used.
-   * @param {string=} opt_type The log type, if known.
+   * @param opt_type The log type, if known.
    */
-  constructor(level, message, opt_timestamp, opt_type) {
+  constructor(level: Level | string | number, message: string, opt_timestamp?: number, opt_type?: string) {
     this.level = level instanceof Level ? level : getLevel(level)
     this.message = message
     this.timestamp = typeof opt_timestamp === 'number' ? opt_timestamp : Date.now()
@@ -225,10 +224,9 @@ class Entry {
   }
 
   /**
-   * @return {{level: string, message: string, timestamp: number,
-   *           type: string}} The JSON representation of this entry.
+   * @return The JSON representation of this entry.
    */
-  toJSON() {
+  toJSON(): { level: string; message: string; timestamp: number; type: string } {
     return {
       level: this.level.name,
       message: this.message,
@@ -254,65 +252,58 @@ class Entry {
  *
  * @final
  */
-class Logger {
+export class Logger {
+  private readonly name_: string
+  private level_: Level | null
+  /** Set by {@link LogManager}; read by tests. */
+  parent_: Logger | null
+  private handlers_: Set<Handler> | null
+  /** ids already reported via {@link #deprecate}. */
+  private readonly deprecated_: Set<string>
+
   /**
-   * @param {string} name the name of this logger.
-   * @param {Level=} opt_level the initial level for this logger.
+   * @param name the name of this logger.
+   * @param opt_level the initial level for this logger.
    */
-  constructor(name, opt_level) {
-    /** @private {string} */
+  constructor(name: string, opt_level?: Level | null) {
     this.name_ = name
-
-    /** @private {Level} */
     this.level_ = opt_level || null
-
-    /** @private {Logger} */
     this.parent_ = null
-
-    /** @private {Set<function(!Entry)>} */
     this.handlers_ = null
-
-    /** @private {Set<string>} ids already reported via {@link #deprecate}. */
     this.deprecated_ = new Set()
   }
 
-  /** @return {string} the name of this logger. */
-  getName() {
+  /** @return the name of this logger. */
+  getName(): string {
     return this.name_
   }
 
   /**
-   * @param {Level} level the new level for this logger, or `null` if the logger
+   * @param level the new level for this logger, or `null` if the logger
    *     should inherit its level from its parent logger.
    */
-  setLevel(level) {
+  setLevel(level: Level | null): void {
     this.level_ = level
   }
 
-  /** @return {Level} the log level for this logger. */
-  getLevel() {
+  /** @return the log level for this logger. */
+  getLevel(): Level | null {
     return this.level_
   }
 
   /**
-   * @return {!Level} the effective level for this logger.
+   * @return the effective level for this logger.
    */
-  getEffectiveLevel() {
-    let logger = this
-    let level
-    do {
-      level = logger.level_
-      logger = logger.parent_
-    } while (logger && !level)
-    return level || Level.OFF
+  getEffectiveLevel(): Level {
+    return this.level_ || this.parent_?.getEffectiveLevel() || Level.OFF
   }
 
   /**
-   * @param {!Level} level the level to check.
-   * @return {boolean} whether messages recorded at the given level are loggable
+   * @param level the level to check.
+   * @return whether messages recorded at the given level are loggable
    *     by this instance.
    */
-  isLoggable(level) {
+  isLoggable(level: Level): boolean {
     return level.value !== Level.OFF.value && level.value >= this.getEffectiveLevel().value
   }
 
@@ -320,9 +311,9 @@ class Logger {
    * Adds a handler to this logger. The handler will be invoked for each message
    * logged with this instance, or any of its descendants.
    *
-   * @param {function(!Entry)} handler the handler to add.
+   * @param handler the handler to add.
    */
-  addHandler(handler) {
+  addHandler(handler: Handler): void {
     if (!this.handlers_) {
       this.handlers_ = new Set()
     }
@@ -332,10 +323,10 @@ class Logger {
   /**
    * Removes a handler from this logger.
    *
-   * @param {function(!Entry)} handler the handler to remove.
-   * @return {boolean} whether a handler was successfully removed.
+   * @param handler the handler to remove.
+   * @return whether a handler was successfully removed.
    */
-  removeHandler(handler) {
+  removeHandler(handler: Handler): boolean {
     if (!this.handlers_) {
       return false
     }
@@ -349,49 +340,52 @@ class Logger {
    * {@linkplain #getEffectiveLevel() effective log level} includes the given
    * `level`.
    *
-   * @param {!Level} level the level at which to log the message.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param level the level at which to log the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  log(level, loggable) {
+  log(level: Level, loggable: Loggable): void {
     if (!this.isLoggable(level)) {
       return
     }
-    let message = '[' + this.name_ + '] ' + (typeof loggable === 'function' ? loggable() : loggable)
-    let entry = new Entry(level, message, Date.now())
-    for (let logger = this; logger; logger = logger.parent_) {
-      if (logger.handlers_) {
-        for (let handler of logger.handlers_) {
-          handler(entry)
-        }
+    const message = '[' + this.name_ + '] ' + (typeof loggable === 'function' ? loggable() : loggable)
+    this.dispatch_(new Entry(level, message, Date.now()))
+  }
+
+  /** Invokes this logger's handlers, then each ancestor's. */
+  private dispatch_(entry: Entry): void {
+    if (this.handlers_) {
+      for (const handler of this.handlers_) {
+        handler(entry)
       }
     }
+    this.parent_?.dispatch_(entry)
   }
 
   /**
    * Logs a message at the {@link Level.SEVERE} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  severe(loggable) {
+  severe(loggable: Loggable): void {
     this.log(Level.SEVERE, loggable)
   }
 
   /**
    * Logs a message at the {@link Level.WARNING} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  warning(loggable) {
+  warning(loggable: Loggable): void {
     this.log(Level.WARNING, loggable)
   }
 
   /**
    * Logs a message at the {@link Level.INFO} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  info(loggable) {
+  info(loggable: Loggable): void {
     this.log(Level.INFO, loggable)
   }
 
@@ -407,13 +401,13 @@ class Logger {
    * call here logs nothing and leaves `id` unclaimed, so a later call (once
    * logging is enabled) still gets to report it instead of finding it already
    * silently used up.
-   * @param {string} id a stable, non-empty identifier for this deprecation
+   * @param id a stable, non-empty identifier for this deprecation
    *     (e.g. `'webdriver-getBidi'`), distinct from the message text so
    *     tooling can key off it even if the wording changes later.
-   * @param {string} message the deprecation notice to log.
+   * @param message the deprecation notice to log.
    * @throws {TypeError} if `id` is empty.
    */
-  deprecate(id, message) {
+  deprecate(id: string, message: string): void {
     if (!id) {
       throw new TypeError('Logger#deprecate() requires a non-empty id')
     }
@@ -429,37 +423,37 @@ class Logger {
 
   /**
    * Logs a message at the {@link Level.DEBUG} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  debug(loggable) {
+  debug(loggable: Loggable): void {
     this.log(Level.DEBUG, loggable)
   }
 
   /**
    * Logs a message at the {@link Level.FINE} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  fine(loggable) {
+  fine(loggable: Loggable): void {
     this.log(Level.FINE, loggable)
   }
 
   /**
    * Logs a message at the {@link Level.FINER} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  finer(loggable) {
+  finer(loggable: Loggable): void {
     this.log(Level.FINER, loggable)
   }
 
   /**
    * Logs a message at the {@link Level.FINEST} log level.
-   * @param {(string|function(): string)} loggable the message to log, or a
-   *     function that will return the message.
+   * @param loggable the message to log, or a function that will return the
+   *     message.
    */
-  finest(loggable) {
+  finest(loggable: Loggable): void {
     this.log(Level.FINEST, loggable)
   }
 }
@@ -469,9 +463,12 @@ class Logger {
  *
  * @final
  */
-class LogManager {
+export class LogManager {
+  private readonly loggers_: Map<string, Logger>
+  /** The root logger; module-level helpers attach console handlers to it. */
+  readonly root_: Logger
+
   constructor() {
-    /** @private {!Map<string, !Logger>} */
     this.loggers_ = new Map()
     this.root_ = new Logger('', Level.OFF)
   }
@@ -481,16 +478,16 @@ class LogManager {
    * implicitly create the requested logger, and any of its parents, if they
    * do not yet exist.
    *
-   * @param {string} name the logger's name.
-   * @return {!Logger} the requested logger.
+   * @param name the logger's name.
+   * @return the requested logger.
    */
-  getLogger(name) {
+  getLogger(name: string): Logger {
     if (!name) {
       return this.root_
     }
     let parent = this.root_
     for (let i = name.indexOf('.'); i != -1; i = name.indexOf('.', i + 1)) {
-      let parentName = name.substr(0, i)
+      const parentName = name.substr(0, i)
       parent = this.createLogger_(parentName, parent)
     }
     return this.createLogger_(name, parent)
@@ -499,16 +496,16 @@ class LogManager {
   /**
    * Creates a new logger.
    *
-   * @param {string} name the logger's name.
-   * @param {!Logger} parent the logger's parent.
-   * @return {!Logger} the new logger.
-   * @private
+   * @param name the logger's name.
+   * @param parent the logger's parent.
+   * @return the new logger.
    */
-  createLogger_(name, parent) {
-    if (this.loggers_.has(name)) {
-      return /** @type {!Logger} */ (this.loggers_.get(name))
+  private createLogger_(name: string, parent: Logger): Logger {
+    const existing = this.loggers_.get(name)
+    if (existing) {
+      return existing
     }
-    let logger = new Logger(name, null)
+    const logger = new Logger(name, null)
     logger.parent_ = parent
     this.loggers_.set(name, logger)
     return logger
@@ -536,20 +533,20 @@ if (typeof process !== 'undefined' && process.env && (process.env.SE_DEBUG || pr
  * The log level will be unspecified for newly created loggers. Use
  * {@link Logger#setLevel(level)} to explicitly set a level.
  *
- * @param {string} name the logger's name.
- * @return {!Logger} the requested logger.
+ * @param name the logger's name.
+ * @return the requested logger.
  */
-function getLogger(name) {
+export function getLogger(name: string): Logger {
   return logManager.getLogger(name)
 }
 
 /**
  * Pads a number to ensure it has a minimum of two digits.
  *
- * @param {number} n the number to be padded.
- * @return {string} the padded number.
+ * @param n the number to be padded.
+ * @return the padded number.
  */
-function pad(n) {
+function pad(n: number): string {
   if (n >= 10) {
     return '' + n
   } else {
@@ -559,15 +556,15 @@ function pad(n) {
 
 /**
  * Logs all messages to the Console API.
- * @param {!Entry} entry the entry to log.
+ * @param entry the entry to log.
  */
-function consoleHandler(entry) {
+function consoleHandler(entry: Entry): void {
   if (typeof console === 'undefined' || !console) {
     return
   }
 
-  var timestamp = new Date(entry.timestamp)
-  var msg =
+  const timestamp = new Date(entry.timestamp)
+  const msg =
     '[' +
     timestamp.getUTCFullYear() +
     '-' +
@@ -586,7 +583,7 @@ function consoleHandler(entry) {
     '] ' +
     entry.message
 
-  var level = entry.level.value
+  const level = entry.level.value
   if (level >= Level.SEVERE.value) {
     console.error(msg)
   } else if (level >= Level.WARNING.value) {
@@ -600,38 +597,37 @@ function consoleHandler(entry) {
  * Adds the console handler to the given logger. The console handler will log
  * all messages using the JavaScript Console API.
  *
- * @param {Logger=} opt_logger The logger to add the handler to; defaults
- *     to the root logger.
+ * @param opt_logger The logger to add the handler to; defaults to the root
+ *     logger.
  */
-function addConsoleHandler(opt_logger) {
-  let logger = opt_logger || logManager.root_
+export function addConsoleHandler(opt_logger?: Logger): void {
+  const logger = opt_logger || logManager.root_
   logger.addHandler(consoleHandler)
 }
 
 /**
  * Removes the console log handler from the given logger.
  *
- * @param {Logger=} opt_logger The logger to remove the handler from; defaults
- *     to the root logger.
+ * @param opt_logger The logger to remove the handler from; defaults to the
+ *     root logger.
  * @see exports.addConsoleHandler
  */
-function removeConsoleHandler(opt_logger) {
-  let logger = opt_logger || logManager.root_
+export function removeConsoleHandler(opt_logger?: Logger): void {
+  const logger = opt_logger || logManager.root_
   logger.removeHandler(consoleHandler)
 }
 
 /**
  * Installs the console log handler on the root logger.
  */
-function installConsoleHandler() {
+export function installConsoleHandler(): void {
   addConsoleHandler(logManager.root_)
 }
 
 /**
  * Common log types.
- * @enum {string}
  */
-const Type = {
+export const Type = {
   /** Logs originating from the browser. */
   BROWSER: 'browser',
   /** Logs from a WebDriver client. */
@@ -642,26 +638,29 @@ const Type = {
   PERFORMANCE: 'performance',
   /** Logs from the remote server. */
   SERVER: 'server',
-}
+} as const
+
+export type Type = (typeof Type)[keyof typeof Type]
 
 /**
  * Describes the log preferences for a WebDriver session.
  *
  * @final
  */
-class Preferences {
+export class Preferences {
+  private readonly prefs_: Map<string, Level>
+
   constructor() {
-    /** @private {!Map<string, !Level>} */
     this.prefs_ = new Map()
   }
 
   /**
    * Sets the desired logging level for a particular log type.
-   * @param {(string|Type)} type The log type.
-   * @param {(!Level|string|number)} level The desired log level.
+   * @param type The log type.
+   * @param level The desired log level.
    * @throws {TypeError} if `type` is not a `string`.
    */
-  setLevel(type, level) {
+  setLevel(type: string, level: Level | string | number): void {
     if (typeof type !== 'string') {
       throw TypeError('specified log type is not a string: ' + typeof type)
     }
@@ -670,30 +669,13 @@ class Preferences {
 
   /**
    * Converts this instance to its JSON representation.
-   * @return {!Object<string, string>} The JSON representation of this set of
-   *     preferences.
+   * @return The JSON representation of this set of preferences.
    */
-  toJSON() {
-    let json = {}
-    for (let key of this.prefs_.keys()) {
-      json[key] = this.prefs_.get(key).name
+  toJSON(): Record<string, string> {
+    const json: Record<string, string> = {}
+    for (const [key, level] of this.prefs_) {
+      json[key] = level.name
     }
     return json
   }
-}
-
-// PUBLIC API
-
-module.exports = {
-  Entry: Entry,
-  Level: Level,
-  LogManager: LogManager,
-  Logger: Logger,
-  Preferences: Preferences,
-  Type: Type,
-  addConsoleHandler: addConsoleHandler,
-  getLevel: getLevel,
-  getLogger: getLogger,
-  installConsoleHandler: installConsoleHandler,
-  removeConsoleHandler: removeConsoleHandler,
 }
