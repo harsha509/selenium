@@ -183,6 +183,7 @@ ts_project(
     root_dir = ".",
     tsconfig = "tsconfig.json",
     deps = [
+        ":node_modules/@bazel/runfiles",
         ":node_modules/@types/node",
         ":node_modules/@types/tmp",
         ":node_modules/@types/ws",
