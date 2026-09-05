@@ -46,7 +46,7 @@ export function isFree(port: number, opt_host?: string): Promise<boolean> {
  * @return A promise that will resolve to a free port. If a port cannot be
  *     found, the promise will be rejected.
  */
-export function findFreePort(opt_host?: string): Promise<number | string> {
+export function findFreePort(opt_host?: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
     server.on('listening', function () {
@@ -58,7 +58,7 @@ export function findFreePort(opt_host?: string): Promise<number | string> {
     })
     server.on('error', (e: NodeJS.ErrnoException) => {
       if (e.code === 'EADDRINUSE' || e.code === 'EACCES') {
-        resolve('Unable to find a free port')
+        reject(new Error('Unable to find a free port'))
       } else {
         reject(e)
       }

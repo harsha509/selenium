@@ -1288,7 +1288,7 @@ export class WebDriver extends IWebDriver {
     return this.#network
   }
 
-  validatePrintPageParams(keys: PrintPageOptions, object: PrintPageParams): PrintPageParams {
+  validatePrintPageParams<T extends PrintPageParams>(keys: PrintPageOptions, object: T): T {
     const page: { width?: unknown; height?: unknown } = {}
     const margin: { top?: unknown; left?: unknown; bottom?: unknown; right?: unknown } = {}
     for (const [key, data] of Object.entries(keys)) {
