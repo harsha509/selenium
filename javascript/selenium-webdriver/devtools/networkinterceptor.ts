@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './networkinterceptor'
+
 /** One header returned by a mocked response. */
 export interface Header {
   name: string
@@ -93,3 +95,7 @@ export class HttpResponse {
     return this.returnMethod
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

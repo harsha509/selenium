@@ -16,6 +16,7 @@
 // under the License.
 
 import * as childProcess from 'node:child_process'
+import * as self from './exec'
 
 /**
  * Options for configuring an executed command.
@@ -142,3 +143,7 @@ export function exec(command: string, opt_options?: Options): Command {
     }
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

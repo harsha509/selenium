@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './util'
+
 /**
  * Determines whether a {@code value} should be treated as an object.
  * @param value The value to test.
@@ -41,3 +43,7 @@ export function isPromise(value: unknown): value is PromiseLike<unknown> {
     return false
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

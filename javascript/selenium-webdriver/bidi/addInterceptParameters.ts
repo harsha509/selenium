@@ -17,6 +17,7 @@
 
 import { UrlPattern } from './urlPattern'
 import type { InterceptPhase } from './interceptPhase'
+import * as self from './addInterceptParameters'
 
 /** One serialised URL pattern: a builder's map, or a raw string pattern. */
 type UrlPatternJson = Record<string, string> | { type: 'string'; pattern: string }
@@ -105,3 +106,7 @@ export class AddInterceptParameters {
     return map
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

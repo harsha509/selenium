@@ -20,6 +20,7 @@
  */
 
 import type { ShadowRoot, WebDriver, WebElement } from './webdriver'
+import * as self from './by'
 
 /**
  * Short-hand expressions for the primary element locator strategies.
@@ -518,3 +519,7 @@ function check(locator: Locator): By | RelativeBy | LocatorFunction {
 }
 
 export { check as checkedLocator }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

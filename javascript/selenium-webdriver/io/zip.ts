@@ -20,6 +20,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs/promises'
 import * as io from './index'
 import { InvalidArgumentError } from '../lib/error'
+import * as self from './zip'
 
 /**
  * Manages a zip archive.
@@ -191,3 +192,7 @@ export function unzip(src: string, dst: string): Promise<string> {
     }
   })
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

@@ -108,5 +108,7 @@ async function getBrowserInstance(driver: BidiDriver): Promise<Browser> {
 }
 
 getBrowserInstance.WindowState = WindowState
+// Also assigned through module.exports so Node ESM consumers can `import { WindowState }` (cjs-module-lexer needs the literal pattern).
+module.exports.WindowState = WindowState
 
 export = getBrowserInstance

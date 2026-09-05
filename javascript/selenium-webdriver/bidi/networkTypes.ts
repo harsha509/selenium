@@ -16,6 +16,7 @@
 // under the License.
 
 import { NavigationInfo } from './browsingContextTypes'
+import * as self from './networkTypes'
 
 /** Case-insensitive lookup of a SameSite value by name. */
 function findByName(this: Record<string, unknown>, name: string): string | null {
@@ -863,3 +864,7 @@ export class ResponseStarted extends BaseParameters {
     return this._response
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

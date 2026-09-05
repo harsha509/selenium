@@ -17,6 +17,7 @@
 
 import type BiDi from './index'
 import { BidiDriver, getBidiConnection } from '../lib/bidi_connection'
+import * as self from './domain'
 
 /** A BiDi command message, minus the connection-assigned `id`. */
 export interface BidiCommand {
@@ -135,3 +136,7 @@ export class Domain {
     return this.#bidi.addCallback(descriptor.method, dispatch)
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

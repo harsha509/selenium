@@ -16,6 +16,7 @@
 // under the License.
 
 import { Capabilities, CapabilitiesLike } from './capabilities'
+import * as self from './session'
 
 /**
  * Contains information about a single WebDriver session.
@@ -65,3 +66,7 @@ export class Session {
     return this.getId()
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

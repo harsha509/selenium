@@ -28,6 +28,7 @@ import { Browser, Capabilities } from './lib/capabilities'
 import type { CapabilitiesLike } from './lib/capabilities'
 import { getBinaryPaths } from './common/driverFinder'
 import { isObject } from './lib/util'
+import * as self from './safari'
 
 /**
  * Creates {@link remote.DriverService} instances that manage
@@ -149,3 +150,7 @@ class Driver extends webdriver.WebDriver {
 // Public API
 
 export { Driver, Options, ServiceBuilder }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

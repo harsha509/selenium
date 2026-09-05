@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './command'
+
 /**
  * @fileoverview Contains several classes for handling commands.
  */
@@ -214,3 +216,7 @@ export abstract class Executor {
    */
   abstract execute(command: Command): Promise<unknown>
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

@@ -16,6 +16,7 @@
 // under the License.
 
 import * as os from 'node:os'
+import * as self from './index'
 
 function getLoInterface(): os.NetworkInterfaceInfo[] | null | undefined {
   let name
@@ -99,3 +100,7 @@ export function splitHostAndPort(hostport: string): { host: string; port: number
   const port = parseInt(hostport.slice(lastIndex + 1), 10)
   return { host, port }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

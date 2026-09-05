@@ -29,6 +29,7 @@ import * as net from '../net/index'
 import * as portprober from '../net/portprober'
 import * as logging from '../lib/logging'
 import { getJavaPath, formatSpawnArgs } from './util'
+import * as self from './index'
 
 /** IO configuration for a spawned server process, as accepted by `child_process.spawn`. */
 export type StdIoOptions = StdioOptions
@@ -515,3 +516,7 @@ export class FileDetector extends input.FileDetector {
     )
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

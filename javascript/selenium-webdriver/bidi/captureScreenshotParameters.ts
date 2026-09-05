@@ -16,6 +16,7 @@
 // under the License.
 
 import { BoxClipRectangle, ElementClipRectangle } from './clipRectangle'
+import * as self from './captureScreenshotParameters'
 
 /**
  * Defines the reference point from which to compute offsets for capturing screenshot.
@@ -90,3 +91,7 @@ export class CaptureScreenshotParameters {
     return this.#map
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

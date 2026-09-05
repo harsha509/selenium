@@ -25,6 +25,7 @@ import * as path from 'node:path'
 import { binaryPaths, BinaryPaths } from './seleniumManager'
 import { Capabilities } from '../lib/capabilities'
 import { isObject } from '../lib/util'
+import * as self from './driverFinder'
 
 /**
  * Determines the path of the correct Selenium Manager binary
@@ -78,3 +79,7 @@ function getArgs(options: Capabilities): string[] {
   }
   return args
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

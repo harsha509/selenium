@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './logging'
+
 /**
  * @fileoverview Defines WebDriver's logging system. The logging system is
  * broken into major components: local and remote logging.
@@ -679,3 +681,7 @@ export class Preferences {
     return json
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

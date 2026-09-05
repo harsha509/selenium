@@ -31,6 +31,7 @@ import * as promise from './promise'
 import { Session } from './session'
 import * as webElement from './webelement'
 import { isObject } from './util'
+import * as self from './http'
 
 const log_ = logging.getLogger(`${logging.Type.DRIVER}.http`)
 
@@ -589,3 +590,7 @@ export function buildPath(path: string, parameters: Record<string, unknown>): st
   }
   return path
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

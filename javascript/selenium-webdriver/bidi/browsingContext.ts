@@ -712,5 +712,7 @@ async function getBrowsingContextInstance(
 }
 
 getBrowsingContextInstance.Locator = Locator
+// Also assigned through module.exports so Node ESM consumers can `import { Locator }` (cjs-module-lexer needs the literal pattern).
+module.exports.Locator = Locator
 
 export = getBrowsingContextInstance

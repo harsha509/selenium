@@ -16,6 +16,7 @@
 // under the License.
 
 import { register, resolve } from './registry'
+import * as self from './record'
 
 // Mirrors bidi_schema.json's type-ref vocabulary (see project_bidi_schema.mjs).
 export interface TypeNode {
@@ -414,3 +415,7 @@ export function defineRecord<T>(name: string, fields: FieldSpec[], options: Reco
 export function defineAlias(name: string, type: TypeNode): void {
   register(name, { kind: 'alias', type })
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

@@ -26,6 +26,7 @@ import { createRequire } from 'node:module'
 import * as url from 'node:url'
 
 import * as httpLib from '../lib/http'
+import * as self from './index'
 
 /** Parsed request target, as produced by the legacy `url.parse`. */
 type RequestOptions = url.UrlWithStringQuery
@@ -360,3 +361,7 @@ function isRetryableNetworkError(err: NodeJS.ErrnoException): boolean {
 export const Agent = http.Agent
 export type Agent = http.Agent
 export { Executor, Request, Response } from '../lib/http'
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

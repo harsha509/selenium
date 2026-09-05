@@ -17,6 +17,7 @@
 
 import BiDi from '../bidi/index'
 import { Capabilities } from './capabilities'
+import * as self from './bidi_connection'
 
 /** The subset of a WebDriver needed to open its BiDi connection. */
 export interface BidiDriver {
@@ -86,3 +87,7 @@ export async function closeBidiConnection(driver: BidiDriver): Promise<void> {
     // Nothing to close — the original connection attempt failed.
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

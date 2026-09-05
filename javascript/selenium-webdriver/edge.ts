@@ -81,6 +81,7 @@ import { Browser, Capabilities } from './lib/capabilities'
 import type * as remote from './remote/index'
 import * as chromium from './chromium'
 import type { ChromiumDriverConstructor } from './chromium'
+import * as self from './edge'
 const EDGE_CAPABILITY_KEY = 'ms:edgeOptions'
 
 /**
@@ -172,3 +173,7 @@ export class Driver extends chromium.Driver {
 
 Options.prototype.BROWSER_NAME_VALUE = Browser.EDGE
 Options.prototype.CAPABILITY_KEY = EDGE_CAPABILITY_KEY
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

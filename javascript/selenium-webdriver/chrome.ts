@@ -127,6 +127,7 @@ import type * as http from './http/index'
 import type * as remote from './remote/index'
 import * as chromium from './chromium'
 import type { ChromiumDriverConstructor } from './chromium'
+import * as self from './chrome'
 const CHROME_CAPABILITY_KEY = 'goog:chromeOptions'
 
 /**
@@ -232,3 +233,7 @@ export class Driver extends chromium.Driver {
 
 Options.prototype.CAPABILITY_KEY = CHROME_CAPABILITY_KEY
 Options.prototype.BROWSER_NAME_VALUE = Browser.CHROME
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

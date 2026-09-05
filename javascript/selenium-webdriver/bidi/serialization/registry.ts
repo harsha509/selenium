@@ -18,6 +18,7 @@
 import type { EnumEntry } from './enum'
 import type { AliasEntry, RecordEntry } from './record'
 import type { UnionEntry } from './union'
+import * as self from './registry'
 
 /** Anything a schema type name can resolve to. */
 export type RegistryEntry = EnumEntry<string> | RecordEntry | UnionEntry | AliasEntry
@@ -37,3 +38,7 @@ export function register(name: string, entry: RegistryEntry): void {
 export function resolve(name: string): RegistryEntry | undefined {
   return types.get(name)
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

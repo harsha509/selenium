@@ -16,6 +16,7 @@
 // under the License.
 
 import * as net from 'node:net'
+import * as self from './portprober'
 
 /**
  * Tests if a port is free.
@@ -67,3 +68,7 @@ export function findFreePort(opt_host?: string): Promise<number> {
     server.listen(0, opt_host)
   })
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

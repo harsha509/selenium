@@ -16,6 +16,7 @@
 // under the License.
 
 import { LocalValue, ReferenceValue } from './protocolValue'
+import * as self from './argumentValue'
 
 /**
  * @deprecated
@@ -38,3 +39,7 @@ export class ArgumentValue {
     }
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

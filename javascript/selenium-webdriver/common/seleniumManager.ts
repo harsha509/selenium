@@ -26,6 +26,7 @@ import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import * as logging from '../lib/logging'
+import * as self from './seleniumManager'
 
 /** One log line in Selenium Manager's JSON output. */
 interface SeleniumManagerLog {
@@ -130,3 +131,7 @@ function logOutput(output: SeleniumManagerOutput): void {
     }
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

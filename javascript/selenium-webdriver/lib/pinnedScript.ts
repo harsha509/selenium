@@ -16,6 +16,7 @@
 // under the License.
 
 import { randomUUID } from 'node:crypto'
+import * as self from './pinnedScript'
 
 export class PinnedScript {
   private readonly scriptSource_: string
@@ -55,3 +56,7 @@ export class PinnedScript {
     return `__webdriver_${this.scriptHandle_} = undefined`
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

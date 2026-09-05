@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './partitionKey'
+
 /**
  * Represents a partition key of cookie storage.
  * Described in https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey.
@@ -47,3 +49,7 @@ export class PartitionKey {
     return this.#sourceOrigin
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

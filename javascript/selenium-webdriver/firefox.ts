@@ -121,6 +121,7 @@ import type { CapabilitiesLike } from './lib/capabilities'
 import { Zip } from './io/zip'
 import { getBinaryPaths } from './common/driverFinder'
 import { findFreePort } from './net/portprober'
+import * as self from './firefox'
 const FIREFOX_CAPABILITY_KEY = 'moz:firefoxOptions'
 
 /** The `moz:firefoxOptions` dictionary. */
@@ -799,3 +800,7 @@ class Channel {
 // PUBLIC API
 
 export { Channel, Context, Driver, Options, ServiceBuilder }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

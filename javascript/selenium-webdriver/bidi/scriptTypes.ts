@@ -17,6 +17,7 @@
 
 import type { RemoteValue } from './protocolValue'
 import type { RealmInfo, WindowRealmInfo } from './realmInfo'
+import * as self from './scriptTypes'
 
 /** Anything that serialises itself for the wire: a LocalValue, ReferenceValue or ArgumentValue. */
 export interface ScriptArgument {
@@ -109,3 +110,7 @@ export class Source {
     return this._realmId
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport

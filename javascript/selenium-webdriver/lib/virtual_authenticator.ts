@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import * as self from './virtual_authenticator'
+
 /**
  * Protocol for virtual authenticators
  */
@@ -279,3 +281,7 @@ export class Credential {
     return new Credential(id, isResidentCredential, rpId, userHandle, privateKey, signCount)
   }
 }
+
+/** Keeps `import x from '...'` working for esModuleInterop/Babel consumers; deliberate exception to the no-default-export rule. */
+const defaultExport: typeof self = self
+export default defaultExport
