@@ -15,20 +15,25 @@
 // specific language governing permissions and limitations
 // under the License.
 
+import type { EnumEntry } from './enum'
+import type { AliasEntry, RecordEntry } from './record'
+import type { UnionEntry } from './union'
+
+/** Anything a schema type name can resolve to. */
+export type RegistryEntry = EnumEntry<string> | RecordEntry | UnionEntry | AliasEntry
+
 // Shared type registry: every generated type registers itself here by its
 // exact schema name (e.g. 'network.InterceptPhase'), so a field whose type is
 // a `ref` can look up what the referenced type actually is — without every
 // domain file needing to import every other domain file directly, and without
 // needing types defined in dependency order (resolution happens at validation
 // time, not at define time, so forward and circular refs both work).
-const types = new Map()
+const types = new Map<string, RegistryEntry>()
 
-function register(name, entry) {
+export function register(name: string, entry: RegistryEntry): void {
   types.set(name, entry)
 }
 
-function resolve(name) {
+export function resolve(name: string): RegistryEntry | undefined {
   return types.get(name)
 }
-
-module.exports = { register, resolve }

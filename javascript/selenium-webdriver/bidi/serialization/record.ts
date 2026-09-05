@@ -15,9 +15,73 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const { register, resolve } = require('./registry')
+import { register, resolve } from './registry'
 
-class ValidationError extends Error {}
+// Mirrors bidi_schema.json's type-ref vocabulary (see project_bidi_schema.mjs).
+export interface TypeNode {
+  primitive?: string
+  const?: unknown
+  ref?: string
+  enum?: string[]
+  list?: TypeNode
+  map?: TypeNode
+  union?: TypeNode[]
+  // An inline (unnamed) record — project_bidi_schema.mjs's projectEntry() emits this
+  // for an anonymous CDDL group instead of hoisting it to a named, ref'able type.
+  record?: FieldSpec[]
+  nullable?: boolean
+  // Present on an inline union with a bare-scalar arm — the primitive(s) that
+  // arm accepts (see unionNode() in project_bidi_schema.mjs). Not consumed by
+  // validateValue yet; declared so embedding a real schema node type-checks.
+  scalar?: string | string[]
+  // The exact `const` literals a bare-scalar union arm admits (e.g.
+  // input.Origin's "viewport"/"pointer") — see unionNode(). Same status as
+  // `scalar`: not yet consumed by validateValue, declared for the embed.
+  scalarValues?: unknown[]
+}
+
+export interface FieldSpec {
+  name: string
+  wire: string
+  required: boolean
+  type: TypeNode
+}
+
+export interface RecordOptions {
+  extensible?: boolean
+}
+
+/** The typed surface of a generated record class; `T` is the caller's declared field shape. */
+export interface RecordClass<T> {
+  new (data: T): Readonly<T>
+  fromWire(payload: unknown): Readonly<T>
+}
+
+/** The untyped runtime shape of a generated record class, as stored in the registry. */
+export interface WireRecordConstructor {
+  new (data: unknown): object
+  fromWire(payload: unknown): object
+}
+
+export interface RecordEntry {
+  kind: 'record'
+  RecordClass: WireRecordConstructor
+}
+
+export interface AliasEntry {
+  kind: 'alias'
+  type: TypeNode
+}
+
+/** Which way a value is crossing the wire. */
+export type Direction = 'inbound' | 'outbound'
+
+export class ValidationError extends Error {}
+
+/** A non-null, non-array object: the only shape a record or map may take. */
+function isWireObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 // Validates a *present* value against a resolved type node, and returns the value to
 // assign for it — usually the same value, but for a nested ref-to-record/union parsed
@@ -29,7 +93,7 @@ class ValidationError extends Error {}
 // `referenced.build(value)` call below exists only to validate, matching the
 // constructor's existing outbound behavior of trusting the caller's own object shape.
 // `direction` only affects how a nested ref-to-record/union is itself validated/parsed.
-function validateValue(typeNode, value, path, direction) {
+function validateValue(typeNode: TypeNode, value: unknown, path: string, direction: Direction): unknown {
   if (value === null) {
     // `primitive: 'null'` (project_bidi_schema.mjs's projectRef(), for a type whose
     // every alternative was null) means null itself is the valid value — accept it
@@ -45,7 +109,13 @@ function validateValue(typeNode, value, path, direction) {
     if (typeNode.primitive === 'null') {
       throw new ValidationError(`${path}: expected null, got ${typeof value}`)
     }
-    const expected = { string: 'string', integer: 'number', number: 'number', boolean: 'boolean' }[typeNode.primitive]
+    const typeofByPrimitive: Record<string, string> = {
+      string: 'string',
+      integer: 'number',
+      number: 'number',
+      boolean: 'boolean',
+    }
+    const expected = typeofByPrimitive[typeNode.primitive]
     if (expected && typeof value !== expected) {
       throw new ValidationError(`${path}: expected ${typeNode.primitive}, got ${typeof value}`)
     }
@@ -77,7 +147,7 @@ function validateValue(typeNode, value, path, direction) {
   }
 
   if (typeNode.enum !== undefined) {
-    if (!typeNode.enum.includes(value)) {
+    if (!typeNode.enum.some((allowed) => allowed === value)) {
       throw new ValidationError(
         `${path}: "${value}" is not a valid value; expected one of: ${typeNode.enum.join(', ')}`,
       )
@@ -89,17 +159,18 @@ function validateValue(typeNode, value, path, direction) {
     if (!Array.isArray(value)) {
       throw new ValidationError(`${path}: expected a list, got ${typeof value}`)
     }
-    return Object.freeze(value.map((item, i) => validateValue(typeNode.list, item, `${path}[${i}]`, direction)))
+    const list = typeNode.list
+    return Object.freeze(value.map((item, i) => validateValue(list, item, `${path}[${i}]`, direction)))
   }
 
   if (typeNode.map !== undefined) {
-    if (typeof value !== 'object' || Array.isArray(value) || value === null) {
+    if (!isWireObject(value)) {
       throw new ValidationError(`${path}: expected an object, got ${typeof value}`)
     }
     // Object.create(null), not `{}`: `key` is wire-controlled and a literal "__proto__"
     // entry assigned via bracket notation would hijack result's prototype instead of
     // becoming a data property (CWE-1321) — a null-prototype object has no such trap.
-    const result = Object.create(null)
+    const result: Record<string, unknown> = Object.create(null)
     for (const [key, entry] of Object.entries(value)) {
       result[key] = validateValue(typeNode.map, entry, `${path}.${key}`, direction)
     }
@@ -121,7 +192,7 @@ function validateValue(typeNode, value, path, direction) {
 
     if (referenced.kind === 'record') {
       if (value instanceof referenced.RecordClass) return value // already validated
-      if (typeof value !== 'object' || Array.isArray(value) || value === null) {
+      if (!isWireObject(value)) {
         throw new ValidationError(`${path}: expected an object, got ${typeof value}`)
       }
       // Recurse through the same-direction path so a nested field gets the same
@@ -152,12 +223,12 @@ function validateValue(typeNode, value, path, direction) {
   }
 
   if (typeNode.union !== undefined) {
-    const errors = []
+    const errors: string[] = []
     for (const variant of typeNode.union) {
       try {
         return validateValue(variant, value, path, direction)
       } catch (err) {
-        errors.push(err.message)
+        errors.push(err instanceof Error ? err.message : String(err))
       }
     }
     throw new ValidationError(`${path}: value did not match any variant (${errors.join('; ')})`)
@@ -170,11 +241,11 @@ function validateValue(typeNode, value, path, direction) {
   // directional required/extra/nested-value handling a named record's constructor/
   // fromWire gives its fields, just built inline instead of through a Record class.
   if (typeNode.record !== undefined) {
-    if (typeof value !== 'object' || Array.isArray(value) || value === null) {
+    if (!isWireObject(value)) {
       throw new ValidationError(`${path}: expected an object, got ${typeof value}`)
     }
-    const byWire = new Map(typeNode.record.map((f) => [f.wire, f]))
-    const result = {}
+    const byWire = new Map<string, FieldSpec>(typeNode.record.map((f): [string, FieldSpec] => [f.wire, f]))
+    const result: Record<string, unknown> = {}
     for (const field of typeNode.record) {
       if (!Object.hasOwn(value, field.wire)) {
         if (field.required) {
@@ -204,24 +275,25 @@ function validateValue(typeNode, value, path, direction) {
 /**
  * Registers a schema `record` — a fixed set of named fields, each independently
  * validated on the way out (constructor) and in (fromWire()).
- * @param {string} name Schema type name, e.g. 'network.AddInterceptParameters'.
- * @param {Array<{name: string, wire: string, required: boolean, type: object}>} fields
- * @param {{extensible?: boolean}} [options]
- * @returns {{new (data: object): object, fromWire: function(unknown): object}}
- *   The generated Record class — `new Record(data)` validates and constructs
+ * @param name Schema type name, e.g. 'network.AddInterceptParameters'.
+ * @param fields The record's field specs.
+ * @param options
+ * @returns The generated Record class — `new Record(data)` validates and constructs
  *   outbound, `Record.fromWire(payload)` validates and parses inbound.
  */
-function defineRecord(name, fields, options = {}) {
+export function defineRecord<T>(name: string, fields: FieldSpec[], options: RecordOptions = {}): RecordClass<T> {
   const { extensible = false } = options
-  const byWire = new Map(fields.map((f) => [f.wire, f]))
+  const byWire = new Map<string, FieldSpec>(fields.map((f): [string, FieldSpec] => [f.wire, f]))
   // JS property name -> wire key, the inverse of byWire — lets toJSON() below map an
   // outbound instance's own (JS-facing) properties back to the wire's declared names.
-  const byName = new Map(fields.map((f) => [f.name, f.wire]))
+  const byName = new Map<string, string>(fields.map((f): [string, string] => [f.name, f.wire]))
 
-  class Record {
+  class WireRecord {
+    [key: string]: unknown
+
     // Outbound: strict. Any value that doesn't match its declared shape is an error here.
-    constructor(data) {
-      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    constructor(data: unknown) {
+      if (!isWireObject(data)) {
         throw new ValidationError(`${name}: expected an object`)
       }
 
@@ -262,12 +334,12 @@ function defineRecord(name, fields, options = {}) {
     // Bypasses the constructor above entirely — a single constructor enforcing
     // both directions symmetrically would make tolerated undeclared-property
     // retention impossible.
-    static fromWire(payload) {
-      if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    static fromWire(payload: unknown): WireRecord {
+      if (!isWireObject(payload)) {
         throw new ValidationError(`${name}: expected an object on the wire, got ${typeof payload}`)
       }
 
-      const instance = Object.create(Record.prototype)
+      const instance: WireRecord = Object.create(WireRecord.prototype)
 
       for (const field of fields) {
         if (!Object.hasOwn(payload, field.wire)) {
@@ -312,13 +384,13 @@ function defineRecord(name, fields, options = {}) {
     // distinct from the raw spec key. Runs automatically wherever this instance is
     // serialized (directly, or nested inside another value being stringified), so a
     // caller never has to remember to call it.
-    toJSON() {
+    toJSON(): Record<string, unknown> {
       // Object.create(null), not `{}`: an extra's key is wire-controlled (extensible
       // types preserve undeclared properties verbatim, see the constructor above), and
       // a literal "__proto__" key assigned via bracket notation would hijack wire's
       // prototype instead of becoming a data property (CWE-1321) — same hazard the
       // constructor/fromWire already guard against for the instance itself.
-      const wire = Object.create(null)
+      const wire: Record<string, unknown> = Object.create(null)
       for (const key of Object.keys(this)) {
         wire[byName.get(key) ?? key] = this[key] // extras have no JS-name mapping — already wire-keyed
       }
@@ -326,20 +398,19 @@ function defineRecord(name, fields, options = {}) {
     }
   }
 
-  Object.defineProperty(Record, 'name', { value: name })
-  register(name, { kind: 'record', RecordClass: Record })
-  return Record
+  Object.defineProperty(WireRecord, 'name', { value: name })
+  register(name, { kind: 'record', RecordClass: WireRecord })
+  // The runtime class is untyped; T is the caller's declared field shape, as in Closure's @template.
+  return WireRecord as unknown as RecordClass<T>
 }
 
 /**
  * Registers a schema `alias` — a name with no fields of its own, just a
  * pointer to another type node (e.g. `network.Intercept` aliasing a plain
  * string). A ref to an alias validates through the aliased type node.
- * @param {string} name
- * @param {object} type The schema's `type` node this name aliases.
+ * @param name
+ * @param type The schema's `type` node this name aliases.
  */
-function defineAlias(name, type) {
+export function defineAlias(name: string, type: TypeNode): void {
   register(name, { kind: 'alias', type })
 }
-
-module.exports = { defineRecord, defineAlias, ValidationError }

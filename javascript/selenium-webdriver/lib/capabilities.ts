@@ -234,7 +234,8 @@ function toMap(hash: Record<string, unknown>): Map<string, unknown> {
  * Describes a set of capabilities for a WebDriver session.
  */
 export class Capabilities {
-  private readonly map_: Map<string, unknown>
+  /** Backing store; read directly by webdriver/index/bidi_connection and by test fakes. */
+  readonly map_: Map<string, unknown>
 
   /**
    * @param other Another set of capabilities to initialize this instance from.

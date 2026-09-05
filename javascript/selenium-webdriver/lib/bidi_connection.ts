@@ -15,7 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-const BiDi = require('../bidi')
+import BiDi from '../bidi/index'
+import { Capabilities } from './capabilities'
+
+/** The subset of a WebDriver needed to open its BiDi connection. */
+export interface BidiDriver {
+  getCapabilities(): Promise<Pick<Capabilities, 'map_'>>
+}
 
 /**
  * One BiDi connection per driver, kept outside the WebDriver class itself so
@@ -26,31 +32,31 @@ const BiDi = require('../bidi')
  * Stores the in-flight promise, not the resolved connection, so a second
  * concurrent call for the same driver awaits the same creation instead of
  * racing its own and leaking whichever connection loses.
- * @type {WeakMap<object, Promise<BiDi>>}
  */
-const connections = new WeakMap()
+const connections = new WeakMap<object, Promise<BiDi>>()
 
 /**
  * Returns the BiDi connection for `driver`, creating it on first access.
- * @param {object} driver The WebDriver instance to obtain a BiDi connection for.
- * @returns {Promise<BiDi>} A promise resolving to `driver`'s BiDi connection, shared
+ * @param driver The WebDriver instance to obtain a BiDi connection for.
+ * @returns A promise resolving to `driver`'s BiDi connection, shared
  *     with any other in-flight or already-resolved call for the same driver.
  */
-function getBidiConnection(driver) {
-  if (!connections.has(driver)) {
-    connections.set(driver, createConnection(driver))
+export function getBidiConnection(driver: BidiDriver): Promise<BiDi> {
+  let pending = connections.get(driver)
+  if (pending === undefined) {
+    pending = createConnection(driver)
+    connections.set(driver, pending)
   }
-  return connections.get(driver)
+  return pending
 }
 
 /**
- * @param {object} driver
- * @returns {Promise<BiDi>}
+ * @param driver
  */
-async function createConnection(driver) {
+async function createConnection(driver: BidiDriver): Promise<BiDi> {
   const caps = await driver.getCapabilities()
-  const webSocketUrl = caps['map_'].get('webSocketUrl')
-  if (!webSocketUrl) {
+  const webSocketUrl: unknown = caps['map_'].get('webSocketUrl')
+  if (typeof webSocketUrl !== 'string' || !webSocketUrl) {
     throw new Error('WebDriver instance must support BiDi protocol')
   }
   return new BiDi(webSocketUrl.replace('localhost', '127.0.0.1'))
@@ -63,11 +69,11 @@ async function createConnection(driver) {
  * Callers (e.g. quit()) invoke this fire-and-forget, so it must never reject:
  * if the original connection attempt itself had failed, `pending` is already
  * rejected and there is nothing live to close.
- * @param {object} driver The WebDriver instance whose BiDi connection should be closed.
- * @returns {Promise<void>} A promise that always resolves, once any open connection
+ * @param driver The WebDriver instance whose BiDi connection should be closed.
+ * @returns A promise that always resolves, once any open connection
  *     has been closed (or immediately, if none was ever opened).
  */
-async function closeBidiConnection(driver) {
+export async function closeBidiConnection(driver: BidiDriver): Promise<void> {
   const pending = connections.get(driver)
   if (pending === undefined) {
     return
@@ -80,5 +86,3 @@ async function closeBidiConnection(driver) {
     // Nothing to close — the original connection attempt failed.
   }
 }
-
-module.exports = { getBidiConnection, closeBidiConnection }
